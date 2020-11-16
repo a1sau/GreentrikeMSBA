@@ -1,0 +1,69 @@
+import requests
+from bs4 import BeautifulSoup as bs
+from time import sleep
+from random import randint
+import re
+import pandas as pd
+# Header info
+headers = {'User-Agent' : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:82.0) Gecko/20100101 Firefox/82.0'}
+
+links_test_one = [['https://www.loopnet.com/Listing/7714-176th-St-Puyallup-WA/19219393/', 'https://www.loopnet.com/Listing/808-N-2nd-St-Tacoma-WA/21423976/'],['https://www.loopnet.com/Listing/3906-S-74th-St-Tacoma-WA/21355235/', 'https://www.loopnet.com/Listing/120-136th-St-S-Tacoma-WA/21333154/']]
+Buildings = []
+counter = 1
+
+table_url = 'https://www.loopnet.com/Listing/120-136th-St-S-Tacoma-WA/21333154/'
+
+r = requests.get(table_url, headers = headers)
+soup = bs(r.content, features='html.parser')
+counter +=1
+table = soup.table
+table_data = table.find_all('td')
+t_list = []
+for td in table_data:
+    strip_td = (re.sub(r"[\n \r \t]*", "", td.get_text()))
+    t_list.append(strip_td)
+t_list2 = {t_list[i]: t_list[i + 1] for i in range(0, len(t_list), 2)}
+
+
+#     ### Look to each page
+for list in links_test_one:
+    for item in list:
+        site_facts = {}
+        url = "{}".format(item)  # Puts the list link in the loop
+        r = requests.get(url, headers=headers)
+        page_soup = bs(r.content, features="html.parser")
+        site_facts['CS_ID'] = 'LN-' + url[-9:-1]
+        site_facts['url'] = url      # Adds the url to the dictonary
+        address = page_soup.find("h1", class_="breadcrumbs__crumb breadcrumbs__crumb-title")    # Finds the address on page.
+        site_facts['address'] = address.get_text()   # Adds the address to dictonary
+        #TODO get the bool teset to work.
+        bool_test = bool(page_soup.find("div", {"class": "property-facts__labels-one-col"}))    # Test to see how the data is formated on the listing page.
+        if bool_test == True:   # This loop is used when the listing uses columns.
+        ### Temp lists to store property information
+            property_label = []
+            property_data = []
+            labels= page_soup.find("div", {"class": "property-facts__labels-one-col"}).find_all('div', recursive=False)  # Selects the child of the correct label column
+            datas = page_soup.find("div", {"class": "property-facts__data-one-col"}).find_all('div', recursive=False)    # Selects the child of the correct data column
+            #   These loops isolate the text from the html and put them into lists.
+            for label in labels:
+                property_label.append(re.sub(r"[\n\r\t]*", "", label.get_text()))
+            for data in datas:  # This loop gets the data information
+                property_data.append(re.sub(r"[\n\r\t]*", "", data.get_text()))  # This removes tabs, newlines and returns
+            property_info = dict(zip(property_label, property_data))   # Creates dictionary of lists
+            site_facts['Property_info'] = property_info
+            Buildings.append(site_facts)
+            sleep(randint(2,5))
+            counter +=1
+        if bool_test == False:  # This loop is used when the listing is in a table.
+            table = page_soup.table
+            table_data = table.find_all('td')
+            t_list = []
+            for td in table_data:
+                strip_td = (re.sub(r"[\n \r \t]*", "", td.get_text()))
+                t_list.append(strip_td)
+            site_facts['Property_info'] = {t_list[i]: t_list[i + 1] for i in range(0, len(t_list), 2)}  # Turns the list into a dictionary
+            Buildings.append(site_facts)
+            sleep(randint(2,5))
+print(Buildings)
+
+# Todo Need to organize the export so that the columns are correct for Database import.  ie- get the buildingID, address line 1, city, state, zip isolated.
