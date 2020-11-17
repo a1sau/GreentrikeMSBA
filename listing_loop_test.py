@@ -34,17 +34,43 @@ for list in links_test_one:
             for data in datas:  # This loop gets the data information
                 property_data.append(re.sub(r"[\n\r\t]*", "", data.get_text()))  # This removes tabs, newlines and returns
             property_info = dict(zip(property_label, property_data))   # Creates dictionary of lists
-            site_facts['Property_info'] = property_info
+        # Get Property Type
+            site_facts['Property Type'] = property_info['Property Type']
+        # Get price
+            site_facts['Price'] = property_info['Price']
+        # Get Square Foot
+            site_facts['Square Feet'] = property_info['Building Size']
+        # Get Building Class
+            site_facts['Building Class'] = property_info['Building Class']
+        # Get Year Built
+            site_facts['Year Built'] = property_info['Year Built']
+        # Get Sale Type
+            site_facts['Sale Type'] = property_info['Sale Type']
             Buildings.append(site_facts)
             sleep(randint(2,5))
         if bool_test == False:  # This loop is used when the listing is in a table.
             table = page_soup.table
             table_data = table.find_all('td')
             t_list = []
+            temp_dict = {}
             for td in table_data:
                 strip_td = (re.sub(r"[\n \r \t]*", "", td.get_text()))
                 t_list.append(strip_td)
-            site_facts['Property_info'] = {t_list[i]: t_list[i + 1] for i in range(0, len(t_list), 2)}  # Turns the list into a dictionary
+            temp_dict= {t_list[i]: t_list[i + 1] for i in range(0, len(t_list), 2)}  # Turns the list into a dictionary
+            site_facts['Property Type'] = temp_dict['PropertyType']
+            # Get price
+            site_facts['Price'] = temp_dict['Price']
+            # Get Square Foot
+            site_facts['Square Feet'] = temp_dict['BuildingSize']
+            # Get Building Class
+            site_facts['Building Class'] = temp_dict['BuildingClass']
+            # Get Year Built
+            if 'YearBuilt/Renovated' in temp_dict:
+                site_facts['Year Built'] = temp_dict['YearBuilt/Renovated']
+            else:
+                site_facts['Year Built'] = temp_dict['YearBuilt']
+            # Get Sale Type
+            site_facts['Sale Type'] = temp_dict['SaleType']
             Buildings.append(site_facts)
             sleep(randint(2,5))
 for building in Buildings:
