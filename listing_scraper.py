@@ -8,24 +8,8 @@ import pandas as pd
 headers = {'User-Agent' : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:82.0) Gecko/20100101 Firefox/82.0'}
 
 links_test_one = [['https://www.loopnet.com/Listing/7714-176th-St-Puyallup-WA/19219393/', 'https://www.loopnet.com/Listing/808-N-2nd-St-Tacoma-WA/21423976/'],['https://www.loopnet.com/Listing/3906-S-74th-St-Tacoma-WA/21355235/', 'https://www.loopnet.com/Listing/120-136th-St-S-Tacoma-WA/21333154/']]
+
 Buildings = []
-counter = 1
-
-table_url = 'https://www.loopnet.com/Listing/120-136th-St-S-Tacoma-WA/21333154/'
-
-r = requests.get(table_url, headers = headers)
-soup = bs(r.content, features='html.parser')
-counter +=1
-table = soup.table
-table_data = table.find_all('td')
-t_list = []
-for td in table_data:
-    strip_td = (re.sub(r"[\n \r \t]*", "", td.get_text()))
-    t_list.append(strip_td)
-t_list2 = {t_list[i]: t_list[i + 1] for i in range(0, len(t_list), 2)}
-
-
-#     ### Look to each page
 for list in links_test_one:
     for item in list:
         site_facts = {}
@@ -53,7 +37,6 @@ for list in links_test_one:
             site_facts['Property_info'] = property_info
             Buildings.append(site_facts)
             sleep(randint(2,5))
-            counter +=1
         if bool_test == False:  # This loop is used when the listing is in a table.
             table = page_soup.table
             table_data = table.find_all('td')
@@ -64,6 +47,5 @@ for list in links_test_one:
             site_facts['Property_info'] = {t_list[i]: t_list[i + 1] for i in range(0, len(t_list), 2)}  # Turns the list into a dictionary
             Buildings.append(site_facts)
             sleep(randint(2,5))
-print(Buildings)
-
-# Todo Need to organize the export so that the columns are correct for Database import.  ie- get the buildingID, address line 1, city, state, zip isolated.
+for building in Buildings:
+    print(building)
