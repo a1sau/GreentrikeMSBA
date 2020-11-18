@@ -25,10 +25,13 @@ def plot_shape():
 
 def basic_pull():
     print('product')
-    product=cp.ACS().from_county('Pierce, WA', level='tract', variables=('B01001_003E','B01001_027E'))
+    product=cp.ACS().from_county('Pierce, WA', level='tract', variables=('B01001_003E','B01001_027E','^B19001_'),return_geometry=False)
+    # product=cp.ACS().from_county('Pierce, WA', level='tract', return_geometry=False)
+    # variables.to_csv("C:/Users/Lugal/OneDrive/Documents/MSBA/Project/pierceCensusVariables.csv")
     print('tacoma')
     # tacoma = product.from_county('Pierce, WA', level='tract', variables=('B01001_003E','B01001_027E'))
     tacoma = product
+    tacoma.to_csv("C:/Users/Lugal/OneDrive/Documents/MSBA/Project/pierceCensus2.csv")
     for tract in tacoma:
         print(tract)
         print(tacoma[tract])
@@ -49,3 +52,8 @@ print("start")
 cp.set_sitekey("6050a96e1b4bd539c1813f17d6607d70760fd718",True)
 basic_pull()
 # plot_shape()
+
+# Call to pull male and female kids ages 0-5
+# https://api.census.gov/data/2018/acs/acs5?get=NAME,B01001_003E,B01001_027E&for=block%20group:*&in=state:53%20county:053&key=6050a96e1b4bd539c1813f17d6607d70760fd718
+
+
