@@ -31,10 +31,24 @@ def listing_info(url_list):
             page_soup = bs(r.content, features="html.parser")
             site_facts['CS_ID'] = 'LN-' + url[-9:-1]
             site_facts['url'] = url  # Adds the url to the dictonary
-            address = page_soup.find("h1",
-                                     class_="breadcrumbs__crumb breadcrumbs__crumb-title")  # Finds the address on page.
-            site_facts['address'] = address.get_text()  # Adds the address to dictonary
-            # TODO get the bool teset to work.
+            loc = page_soup.find("h1", class_="breadcrumbs__crumb breadcrumbs__crumb-title") # Finds the address on page.
+            loc = loc.get_text()
+            check = loc[-5:].isdigit()  #Checks to see if the postal code is in the address
+            if check:
+                a1 = loc.split(", ")
+                # Get AddressLine
+                site_facts['AddressLine'] = a1[0]
+                # Get City
+                site_facts['City'] = a1[1]
+                # Get State
+                site_facts['State'] = a1[2][0:2]
+                # Get Zip
+                site_facts['PostalCode'] = a1[2][-5:]
+            else:
+                site_facts['AddressLine'] = loc
+                site_facts["City"] = "N/A"
+                site_facts['State'] = "N/A"
+                site_facts['PostalCode'] = "N/A"
             is_column = bool(page_soup.find("div", {
                 "class": "property-facts__labels-one-col"}))  # Test to see how the data is formated on the listing page.
             if is_column == True:  # This loop is used when the listing uses columns.
@@ -54,9 +68,9 @@ def listing_info(url_list):
                 property_info = dict(zip(property_label, property_data))  # Creates dictionary of lists
                 # Get Property Type
                 if 'Property Type' in property_info:
-                    site_facts['Property Type'] = property_info['Property Type']
+                    site_facts['PropertyType'] = property_info['Property Type']
                 else:
-                    site_facts['Property Type'] = "N/A"
+                    site_facts['PropertyType'] = "N/A"
                 # Get price
                 if 'Price' in property_info:
                     site_facts['Price'] = property_info['Price']
@@ -64,26 +78,26 @@ def listing_info(url_list):
                     site_facts['Price'] = "N/A"
                 # Get Square Foot
                 if 'Building Size' in property_info:
-                    site_facts['Square Feet'] = property_info['Building Size']
+                    site_facts['SquareFeet'] = property_info['Building Size']
                 else:
-                    site_facts['Square Feet'] = "N/A"
+                    site_facts['SquareFeet'] = "N/A"
                 # Get Building Class
                 if 'Building Class' in property_info:
-                    site_facts['Building Class'] = property_info['Building Class']
+                    site_facts['BuildingClass'] = property_info['Building Class']
                 else:
-                    site_facts['Building Class'] = "N/A"
+                    site_facts['BuildingClass'] = "N/A"
                 # Get Year Built
                 if 'Year Built' in property_info:
-                    site_facts['Year Built'] = property_info['Year Built']
+                    site_facts['YearBuilt'] = property_info['Year Built']
                 elif 'Year Built/Renovated' in property_info:
-                    site_facts['Year Built'] = property_info['Year Built/Renovated']
+                    site_facts['YearBuilt'] = property_info['Year Built/Renovated']
                 else:
-                    site_facts['Year Built'] = "N/A"
+                    site_facts['YearBuilt'] = "N/A"
                 # Get Sale Type
                 if 'Sale Type' in property_info:
-                    site_facts['Sale Type'] = property_info['Sale Type']
+                    site_facts['SaleType'] = property_info['Sale Type']
                 else:
-                    site_facts['Sale Type'] = "N/A"
+                    site_facts['SaleType'] = "N/A"
                 Buildings.append(site_facts)    #Append the this loop to the buildings list
                 sleep(randint(2, 5))
             if is_column == False:  # This loop is used when the listing is in a table.
@@ -97,9 +111,9 @@ def listing_info(url_list):
                 temp_dict = {t_list[i]: t_list[i + 1] for i in
                              range(0, len(t_list), 2)}  # Turns the list into a dictionary
                 if 'PropertyType' in temp_dict:
-                    site_facts['Property Type'] = temp_dict['PropertyType']
+                    site_facts['PropertyType'] = temp_dict['PropertyType']
                 else:
-                    site_facts['Property Type'] = "N/A"
+                    site_facts['PropertyType'] = "N/A"
                 # Get price
                 if 'Price' in temp_dict:
                     site_facts['Price'] = temp_dict['Price']
@@ -107,32 +121,32 @@ def listing_info(url_list):
                     site_facts['Price'] = "N/A"
                 # Get Square Foot
                 if 'BuildingSize' in temp_dict:
-                    site_facts['Square Feet'] = temp_dict['BuildingSize']
+                    site_facts['SquareFeet'] = temp_dict['BuildingSize']
                 if 'TotalBuildingSize' in temp_dict:
-                    site_facts['Square Feet'] = temp_dict['TotalBuildingSize']
+                    site_facts['SquareFeet'] = temp_dict['TotalBuildingSize']
                 if 'UnitSize' in temp_dict:
-                    site_facts['Square Feet'] = temp_dict['UnitSize']
+                    site_facts['SquareFeet'] = temp_dict['UnitSize']
                 if 'RentableBuildingArea' in temp_dict:
-                    site_facts['Square Feet'] = temp_dict['RentableBuildingArea']
+                    site_facts['SquareFeet'] = temp_dict['RentableBuildingArea']
                 else:
-                    site_facts['Square Feet'] = "N/A"
+                    site_facts['SquareFeet'] = "N/A"
                 # Get Building Class
                 if 'BuildingClass' in temp_dict:
-                    site_facts['Building Class'] = temp_dict['BuildingClass']
+                    site_facts['BuildingClass'] = temp_dict['BuildingClass']
                 else:
-                    site_facts['Building Class'] = "N/A"
+                    site_facts['BuildingClass'] = "N/A"
                 # Get Year Built
                 if 'YearBuilt/Renovated' in temp_dict:
-                    site_facts['Year Built'] = temp_dict['YearBuilt/Renovated']
+                    site_facts['YearBuilt'] = temp_dict['YearBuilt/Renovated']
                 elif 'YearBuilt' in temp_dict:
-                    site_facts['Year Built'] = temp_dict['YearBuilt']
+                    site_facts['YearBuilt'] = temp_dict['YearBuilt']
                 else:
-                    site_facts['Year Built'] = "N/A"
+                    site_facts['YearBuilt'] = "N/A"
                 # Get Sale Type
                 if 'SaleType' in temp_dict:
-                    site_facts['Sale Type'] = temp_dict['SaleType']
+                    site_facts['SaleType'] = temp_dict['SaleType']
                 else:
-                    site_facts['Sale Type'] = "N/A"
+                    site_facts['SaleType'] = "N/A"
                 Buildings.append(site_facts)
                 sleep(randint(2, 5))
     return Buildings
