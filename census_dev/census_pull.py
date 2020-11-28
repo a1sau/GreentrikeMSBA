@@ -25,6 +25,7 @@ def plot_shape():
 
 def basic_pull():
     print('product')
+    cp.set_sitekey("6050a96e1b4bd539c1813f17d6607d70760fd718",True)
     product=cp.ACS().from_county('Pierce, WA', level='tract', variables=('B01001_003','B01001_027','^B19001_'),return_geometry=False)
     # product=cp.ACS().from_county('Pierce, WA', level='tract', return_geometry=False)
     # variables.to_csv("C:/Users/Lugal/OneDrive/Documents/MSBA/Project/pierceCensusVariables.csv")
@@ -47,11 +48,18 @@ def basic_pull():
     return None
 
 
+def pull_census_data(cen_vars: str, outfile: str):
+    cp.set_sitekey("6050a96e1b4bd539c1813f17d6607d70760fd718",True)
+    product = cp.ACS().from_county('Pierce, WA', level='tract', variables=cen_vars, return_geometry=False)
+    product.to_csv(outfile)
+    return None
+
 
 print("start")
-cp.set_sitekey("6050a96e1b4bd539c1813f17d6607d70760fd718",True)
-basic_pull()
+
+# basic_pull()
 #plot_shape()
+pull_census_data(["B01003_001E","B01002_001E","B01001_026E","B01001_028E","B01001_004E","B01001_002E","B01001_001E"],"C:/Users/Lugal/OneDrive/Documents/MSBA/Project/pierceCensus4.csv")
 
 # Call to pull male and female kids ages 0-5
 # https://api.census.gov/data/2018/acs/acs5?get=NAME,B01001_003E,B01001_027E&for=block%20group:*&in=state:53%20county:053&key=6050a96e1b4bd539c1813f17d6607d70760fd718
