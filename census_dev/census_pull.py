@@ -47,7 +47,8 @@ def basic_pull():
     # # print(cp.ACS.variables())
     return None
 
-
+#Before being able to pull blockgroup info, you may need to run this command:
+# pip install git+https://github.com/jbousquin/cenpy.git
 def pull_census_data(cen_vars: str, outfile: str, county: str = 'Pierce, WA', level: str = 'blockgroup'):
     cp.set_sitekey("6050a96e1b4bd539c1813f17d6607d70760fd718",True)
     product = cp.ACS().from_county(county, level=level, variables=cen_vars, return_geometry=False)
