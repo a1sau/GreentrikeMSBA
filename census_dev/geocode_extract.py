@@ -92,4 +92,4 @@ def read_bg(outfilename):
 # read_tract(r'C:\Users\Lugal\OneDrive\Documents\MSBA\Project\GeoShapes\tractLongLat.csv')
 # read_tract(None)
 
-# test_connection()
+test_connection()
