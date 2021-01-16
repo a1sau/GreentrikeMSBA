@@ -22,7 +22,7 @@ def build_import_csv(infile: str, outfile_str: str):
     column_list.append("GEOID")
     new_df = df[column_list]
     # print(new_df)
-    print("block_geo_id","variable_id","value", sep='|',file=outfile)
+    print("bg_geo_id","variable_id","value", sep='|',file=outfile)
     for var in var_list:
         # print("!!",var)
         for i, row in new_df.iterrows():
