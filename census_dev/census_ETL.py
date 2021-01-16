@@ -21,11 +21,11 @@ def build_import_csv(infile: str, outfile_str: str):
     column_list.append("GEOID")
     new_df = df[column_list]
     # print(new_df)
-    print("tract_geo_id","variable_id","value", sep='|',file=outfile)
+    print("block_geo_id","variable_id","value", sep='|',file=outfile)
     for var in var_list:
         # print("!!",var)
         for i, row in new_df.iterrows():
-            if int(row[var]) == row[var]:
+            if row[var] == row[var]:
                 value = int(row[var])
             else:
                 value = row[var]
@@ -37,5 +37,6 @@ def build_import_csv(infile: str, outfile_str: str):
 
 
 # build_import_csv(r'C:\Users\Lugal\OneDrive\Documents\MSBA\Project\pierceCensus4.csv',r'C:\Users\Lugal\OneDrive\Documents\MSBA\Project\pierceCensus4OUT.csv')
-build_import_csv(r'C:\Users\Lugal\OneDrive\Documents\MSBA\Project\pierceCensus5KING.csv',r'C:\Users\Lugal\OneDrive\Documents\MSBA\Project\pierceCensus5KINGOUT.csv')
+build_import_csv(r'C:\Users\Benjamin\Documents\UWTacoma\MSBA\Aplied Project with Greentrike\Cencus_Test\pierceCensus10.csv',
+                 r'C:\Users\Benjamin\Documents\UWTacoma\MSBA\Aplied Project with Greentrike\Cencus_Test\pierceCensus_nonull_1_15_20_OUT.csv')
 ##Output = GEOID,variable_ID,value

@@ -65,7 +65,7 @@ def read_tract(outfilename=None):
 
 
 def read_bg(outfilename):
-    with open(r'C:\Users\Lugal\OneDrive\Documents\MSBA\Project\GeoShapes\tl_2018_53_bg.json') as file:
+    with open(r'C:\Users\Benjamin\Documents\UWTacoma\MSBA\GreentrikeMSBA\census_dev\GeoShapes\tl_2018_53_bg.json') as file:
         data = json.load(file)
     print(len(data['objects']['tl_2018_53_bg']['geometries']))
     print(len(data))
@@ -86,8 +86,9 @@ def read_bg(outfilename):
         outfile.close()
 
 
-# read_bg(r'C:\Users\Lugal\OneDrive\Documents\MSBA\Project\GeoShapes\bgLongLat.csv')
-# read_bg(None)
+# read_bg(r'C:\Users\Benjamin\Documents\UWTacoma\MSBA\GreentrikeMSBA\census_dev\GeoShapes\bgLongLat2.csv')
+
+read_bg(None)
 
 # read_tract(r'C:\Users\Lugal\OneDrive\Documents\MSBA\Project\GeoShapes\tractLongLat.csv')
 # read_tract(None)

@@ -48,7 +48,7 @@ def basic_pull():
     return None
 
 #Before being able to pull blockgroup info, you may need to run this command:
-# pip install git+https://github.com/jbousquin/cenpy.git
+#pip install git+https://github.com/jbousquin/cenpy.git
 def pull_census_data(cen_vars: str, outfile: str, county: str = 'Pierce, WA', level: str = 'blockgroup'):
     cp.set_sitekey("6050a96e1b4bd539c1813f17d6607d70760fd718",True)
     product = cp.ACS().from_county(county, level=level, variables=cen_vars, return_geometry=False)
@@ -63,7 +63,7 @@ print("start")
 # pull_census_data(["B01003_001E","B01002_001E","B01001_026E","B01001_028E","B01001_004E","B01001_002E","B01001_001E"],"C:/Users/Lugal/OneDrive/Documents/MSBA/Project/pierceCensus4King.csv")
 pull_census_data(["B19001_012E","B19001_007E","B19001_006E","B01001_027E","B01001_003E","B19001_011E","B19001_016E",
                   "B19001_010E","B19001_015E","B19001_017E","B19001_008E","B19001_009E","B19001_002E","B19001_001E","B19001_004E","B19001_013E","B19001_014E","B19001_005E","B19001_003E"],
-                 "C:/Users/Lugal/OneDrive/Documents/MSBA/Project/pierceCensus10.csv")
+                 "C:/Users/Benjamin/Documents/UWTacoma/MSBA/GreentrikeMSBA/census_dev/pierceCensus10.csv")
 
 # Call to pull male and female kids ages 0-5
 # https://api.census.gov/data/2018/acs/acs5?get=NAME,B01001_003E,B01001_027E&for=block%20group:*&in=state:53%20county:053&key=6050a96e1b4bd539c1813f17d6607d70760fd718
