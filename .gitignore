@@ -1,2 +1,4 @@
 ./idea
 census_dev/cenpy/
+/census_dev/config.ini
+/census_dev/bg_zip_city.csv
