@@ -47,7 +47,11 @@ def start(outfilename,limit=0):
         return None
     cur = conn.cursor()
     # cur.execute("select * from \"Block_Group\" as bg where bg.city is null")
-    cur.execute("select bg.bg_geo_id, bg.longitude, bg.latitude from \"Block_Group\" as bg where bg.city is null order by bg.bg_geo_id")
+    sql_statement = "select bg.bg_geo_id, bg.longitude, bg.latitude from \"Block_Group\" as bg " \
+                    "where bg.city is null order by bg.bg_geo_id"
+    if limit > 0:
+        sql_statement += " limit {}".format(limit)
+    cur.execute(sql_statement)
     rows = cur.fetchall() #todo Combine all the long/lat into an array and call rg only once
     for row in rows:
         print(row)
