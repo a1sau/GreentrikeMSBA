@@ -1,5 +1,5 @@
 import reverse_geocoder as rg
-import multiprocessing as mp
+import sys
 import os.path
 import psycopg2
 import configparser as cp
@@ -8,7 +8,7 @@ from uszipcode import SearchEngine
 
 def read_config():
     config_object = cp.ConfigParser()
-    config_object.read("config.ini")
+    config_object.read("config.ini",encoding="utf8")
     return config_object
 
 
@@ -21,13 +21,13 @@ def create_config() -> None:
         "user": '',
         "password": ''
     }
+    config_object["Email"] = {
+        "email": 'MSBA.Greentrike@gmail.com',
+        "password": ''
+    }
     with open('config.ini', 'w') as conf:
         config_object.write(conf)
 
-def read_config():
-    config_object = cp.ConfigParser()
-    config_object.read("config.ini")
-    return config_object
 
 def start(outfilename,limit=0):
     outfile = open(outfilename, 'w')
@@ -61,18 +61,27 @@ def start(outfilename,limit=0):
         print(bg_geo,zip[0].zipcode,result[0]['name'],sep=",")
         print(bg_geo,zip[0].zipcode,result[0]["name"],sep=",",file=outfile)
         count+=1
-        if limit and (count>=limit):
-            print("Limit reach")
+        if limit and (count >= limit):
+            print("Limit reached")
             break
     outfile.close()
     return None
 
 
-if __name__ == '__main__':
+def check_for_config():
     if os.path.isfile("config.ini"):
-        pass
+        return True
     else:
         print("Config is not exists, attempting to create new file")
         create_config()
-        print("Please configure ""config.ini"" before running script again:")
-    start('bg_zip_city2.csv',10)
+        print("Please configure ""config.ini"" before running script again.")
+        return False
+
+
+if __name__ == '__main__':
+    if check_for_config():
+        limit_results = 10   #Comment out line for full results
+        start('bg_zip_city2.csv',limit_results)
+    else:
+        sys.exit("Configure ""config.ini"" before running script again.")
+
