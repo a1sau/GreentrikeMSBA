@@ -29,8 +29,9 @@ def read_config():
     config_object.read("config.ini")
     return config_object
 
-def start(outfilename):
+def start(outfilename,limit=0):
     outfile = open(outfilename, 'w')
+    count=0
     config = read_config()
     database_config = config['Database']
     try:
@@ -59,6 +60,10 @@ def start(outfilename):
         # print(zip)
         print(bg_geo,zip[0].zipcode,result[0]['name'],sep=",")
         print(bg_geo,zip[0].zipcode,result[0]["name"],sep=",",file=outfile)
+        count+=1
+        if limit and (count>=limit):
+            print("Limit reach")
+            break
     outfile.close()
     return None
 
@@ -68,10 +73,6 @@ if __name__ == '__main__':
         pass
     else:
         print("Config is not exists, attempting to create new file")
-        # create_config()
-    start('bg_zip_city.csv')
-
-    # mp.freeze_support()
-    # coordinates = (51.5214588,-0.1729636),(9.936033, 76.259952),(37.38605,-122.08385)
-    # results = rg.search(coordinates,mode=1)
-    # print(results)
+        create_config()
+        print("Please configure ""config.ini"" before running script again:")
+    start('bg_zip_city2.csv',10)
