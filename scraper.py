@@ -66,6 +66,8 @@ def listing_info(url_list):
                 site_facts["City"] = "N/A"
                 site_facts['State'] = "N/A"
                 site_facts['Postal_Code'] = "N/A"
+
+
             is_column = bool(page_soup.find("div", {
                 "class": "property-facts__labels-one-col"}))  # Test to see how the data is formated on the listing page.
             if is_column == True:  # This loop is used when the listing uses columns.
