@@ -3,7 +3,7 @@ import pandas as pd
 import psycopg2
 import reverse_geocoder2 as rg2
 from math import cos, acos, sin, radians
-from multiprocessing import Process, Queue
+from multiprocessing import Process, Queue, current_process
 import os
 import numpy as np
 
@@ -55,8 +55,9 @@ def calc_dist(dist_df,geo_df,dis_limit=0,queue=None):
         if (count % 10 == 0):
             ptime=round(timer()-row_time,1)
             row_time=timer()
-            print(os.getpid(),"Processing row:",count, "-","Segment Process Time:",ptime, "seconds",)
-            print("ETA:",eta_time(start,count-1,len(dist_df)))
+            print(current_process().name,"Processing row:",count, "-","Segment Process Time:",ptime, "seconds",
+                  "ETA:",eta_time(start,count-1,len(dist_df)))
+            print()
         latA=geo_df.loc[index,['LAT']].values[0]
         longA=geo_df.loc[index,['LONG']].values[0]
         # print("Index:",index)
@@ -70,7 +71,7 @@ def calc_dist(dist_df,geo_df,dis_limit=0,queue=None):
             # dist_df.loc[[index],[col]]=round(distance,1)
             # print(count,latA,latB,longA,longB,distance_lat_long(latA,latB,longA,longB))
     if queue is not None:
-        print("Uploading: PID",os.getpid())
+        print("Uploading: PID",current_process().name)
         queue.put(list_arr)
     return list_arr
 
@@ -134,10 +135,11 @@ def pull_data(limit=0,outfile=None,dis_limit=0):
     queue = Queue()
     processes = []
     for x in range(num_process):
-        processes.append(Process(target=calc_dist, args=(dist_arr[x], geo_df, dis_limit, queue)))
+        processes.append(Process(name="Section_"+str(x+1),target=calc_dist, args=(dist_arr[x], geo_df, dis_limit, queue)))
+    x = 0
     for p in processes:
         p.start()
-        print("Starting Process:",p.pid)
+        print("Starting Process:",p.name)
     # for p in processes:
     #     p.join()
     results = []
@@ -156,7 +158,7 @@ def pull_data(limit=0,outfile=None,dis_limit=0):
 
 
 if __name__ == "__main__":
-    pull_data(limit=10, outfile=r'C:\Users\Lugal\OneDrive\Documents\MSBA\Project\GreentrikeMSBA\census_dev\distanceD.csv',dis_limit=5)
+    pull_data(limit=200, outfile=r'C:\Users\Lugal\OneDrive\Documents\MSBA\Project\GreentrikeMSBA\census_dev\distanceD.csv',dis_limit=5)
 
 
 
