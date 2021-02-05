@@ -12,10 +12,17 @@ import censusgeocode as cg
 headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:82.0) Gecko/20100101 Firefox/82.0'}
 
 
-def grab_placards():
+def grab_placards():  ## NOTE -- this only searches properties that are listed for Sale.
     loopnet_links = []
+    page_number = "https://www.loopnet.com/search/commercial-real-estate/pierce-county-wa/for-sale/"
+    r_page = requests.get(page_number, headers=headers)  # Gets the information from the page
+    s = bs(r_page.content, features="html.parser")  # Turns to bs object.
+    t_listings = s.find('span', class_="total-results-paging-digits")
+    t_listings = t_listings.get_text()
+    t_listings = t_listings.strip()
+    pages = (int(t_listings[-3:])//20) +2  ## uses the number of listings to determine how many pages are in the results.
         ### This is what go to the search and pulls every listing url from the search page(s)
-    for i in range(1,7):      # Number of pages plus one
+    for i in range(1,pages):      # loops equal to the number of pages in the search
         url = "https://www.loopnet.com/search/commercial-real-estate/pierce-county-wa/for-sale/{}/".format(i)  # Looks to this URL, increasing in page numbers.
         r = requests.get(url, headers=headers)  # Gets the information from the page
         soup = bs(r.content, features="html.parser")  # Turns to bs object.
