@@ -20,13 +20,15 @@ def grab_placards():  ## NOTE -- this only searches properties that are listed f
     t_listings = s.find('span', class_="total-results-paging-digits")
     t_listings = t_listings.get_text()
     t_listings = t_listings.strip()
-    pages = (int(t_listings[-3:])//20) +2  ## uses the number of listings to determine how many pages are in the results.
+    t_listings = int(t_listings[-3:])
+    pages = (t_listings//20) +2## uses the number of listings to determine how many pages are in the results.
+    print(f"Found {t_listings} placards across {pages -1} pages.\nStarting to Collect URL's")
         ### This is what go to the search and pulls every listing url from the search page(s)
     for i in range(1,pages):      # loops equal to the number of pages in the search
         url = "https://www.loopnet.com/search/commercial-real-estate/pierce-county-wa/for-sale/{}/".format(i)  # Looks to this URL, increasing in page numbers.
         r = requests.get(url, headers=headers)  # Gets the information from the page
         soup = bs(r.content, features="html.parser")  # Turns to bs object.
-        sleep(randint(3,10))    # Sleeps so we dont get banned.
+        sleep(randint(3,7))    # Sleeps so we dont get banned.
         links = soup.find_all('a', class_="subtitle-beta")  # Grabs the placard links that are NOT the featured placard TODO get the featured placard link
         loop_list=[link['href'] for link in links] # isolates the url from the html
         loopnet_links.append(loop_list) #just puts in the url into the list
@@ -139,6 +141,16 @@ def listing_info(url_list):
                 # Get Sale Type
                 site_facts['Sale_Type'] = temp_dict1.get('Sale Type', 'N/A')
 
+                site_facts["Upload_Date"] = datetime.now().strftime("%Y-%m-%d")
+
+
+                ## TODO Connect to AWS   HOw do you add new records?  how do you edit existing records?
+                    ##
+
+                ## TODO get links to pictures for each listing.  store url to picture within record.
+
+                ## TODO Add currently listed to dictionary.  How will we store the urls that are not active?
+                site_facts["Currently_Listed"] = False
 
                 Buildings.append(site_facts)    #Append the this loop to the buildings list
                 sleep(randint(2, 3))
@@ -206,8 +218,11 @@ def listing_info(url_list):
                 # Get Sale Type
                 site_facts['Sale_Type'] = temp_dict2.get('SaleType', 'N/A')
 
-                # Add the site_Facts to the Buildings List
-                Buildings.append(site_facts)
+                site_facts["Upload_Date"] = datetime.now().strftime("%Y-%m-%d")
+
+                site_facts["Currently_Listed"] = False
+
+                Buildings.append(site_facts)# Add the site_Facts to the Buildings List
                 sleep(randint(2, 3))
     return Buildings
 
