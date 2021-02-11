@@ -66,7 +66,7 @@ def listing_info(url_list):
                 geocode = cg.address(street=site_facts['Address_Line'],city=site_facts['City'],state=site_facts['State'],zipcode=site_facts['Postal_Code'])
                 try:
                     GEOID = geocode[0]['geographies']['Census Tracts'][0]['GEOID']
-                    site_facts['GeoCode'] = GEOID
+                    site_facts['bg_geo_id'] = GEOID
                     print(count, site_facts['Address_Line'], site_facts['City'], GEOID)
                 except Exception as err:
                     pass
@@ -141,6 +141,8 @@ def listing_info(url_list):
                 # Get Sale Type
                 site_facts['Sale_Type'] = temp_dict1.get('Sale Type', 'N/A')
 
+                site_facts["Picture_url"] = "N/A"
+
                 site_facts["Upload_Date"] = datetime.now().strftime("%Y-%m-%d")
 
 
@@ -152,6 +154,7 @@ def listing_info(url_list):
                 ## TODO Add currently listed to dictionary.  How will we store the urls that are not active?
                 site_facts["Currently_Listed"] = False
 
+                site_facts["Sale_Leased"] = "Sale"
                 Buildings.append(site_facts)    #Append the this loop to the buildings list
                 sleep(randint(2, 3))
             if is_column == False:  # This loop is used when the listing is in a table.
@@ -218,9 +221,13 @@ def listing_info(url_list):
                 # Get Sale Type
                 site_facts['Sale_Type'] = temp_dict2.get('SaleType', 'N/A')
 
+                site_facts["Picture_url"] = "N/A"
+
                 site_facts["Upload_Date"] = datetime.now().strftime("%Y-%m-%d")
 
                 site_facts["Currently_Listed"] = False
+
+                site_facts["Sale_Leased"] = "Sale"
 
                 Buildings.append(site_facts)# Add the site_Facts to the Buildings List
                 sleep(randint(2, 3))
