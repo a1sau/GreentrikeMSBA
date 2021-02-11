@@ -25,44 +25,40 @@ def connect(): #Found def config and def connect from https://www.postgresqltuto
         print('Connecting to the PostgreSQL database...')# connect to the PostgreSQL server
         conn = psycopg2.connect(**params)
         ##
+        ETL_Building_Count = 'SELECT COUNT(*) FROM "ETL_Building"'
         cur = conn.cursor()
-        cur.execute('SELECT COUNT(*) FROM "ETL_Building"')
-        connect_test = cur.fetchone()
-        print(connect_test)
+        cur.execute(ETL_Building_Count)
+        count_test = cur.fetchone()
+        print("We are starting with {} records in the ETL Table.".format(count_test[0]))
         cur.close()
         # # TODO copy data from csv to Building ETL
         #     #Ensure that filename will be correct name of most current scrape
         col_names = ("CS_ID","url","Address_Line","City","State","Postal_Code","bg_geo_id","Property_Type","Price","SquareFeet","Building_Class","Year_Built","Sale_Type","Picture_url","Upload_Date","Currently_Listed","Sale_Leased")
-
         cur = conn.cursor()
-        with open('loopnet_listings_2021_02_11-09_44_13_AM.csv', 'r') as f:
+        with open('loopnet_listings_2021_02_10-03_11_00_PM.csv', 'r') as f:
             reader = csv.reader(f)
             next(reader)  # Skip the header row.
             for row in reader:
-                if row[9] == '':
-                    row[9] = .1
+                ETL_Building_insert =  "INSERT INTO \"ETL_Building\" (\"CS_ID\",url,\"Address_Line\",\"City\",\"State\",\"Postal_Code\",\"bg_geo_id\",\"Property_Type\",\"Price\",\"SquareFeet\",\"Building_Class\",\"Year_Built\",\"Sale_Type\",\"Picture_url\",\"Upload_Date\",\"Currently_listed\",\"Sale_Lease\") VALUES (nullif(%s,''), nullif(%s,''), nullif(%s,''), nullif(%s,''), nullif(%s,''), nullif(%s,''), nullif(%s,''), nullif(%s,''), nullif(%s,''), nullif(%s,''), nullif(%s,''), nullif(%s,''), nullif(%s,''), nullif(%s,''), nullif(%s,''), nullif(%s,''), nullif(%s,''))",row
                 cur.execute(
                     "INSERT INTO \"ETL_Building\" (\"CS_ID\",url,\"Address_Line\",\"City\",\"State\",\"Postal_Code\","
                                                   "\"bg_geo_id\",\"Property_Type\",\"Price\",\"SquareFeet\","
                                                   "\"Building_Class\",\"Year_Built\",\"Sale_Type\",\"Picture_url\","
                                                   "\"Upload_Date\",\"Currently_listed\",\"Sale_Lease\")"
-                        " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                        row
-                )
+                        " VALUES (nullif(%s,''), nullif(%s,''), nullif(%s,''), nullif(%s,''), nullif(%s,''),"
+                                " nullif(%s,''), nullif(%s,''), nullif(%s,''), cast(nullif(%s,'')as double precision), cast(nullif(%s,'') as double precision),"
+                                " nullif(%s,''), nullif(%s,''), nullif(%s,''), nullif(%s,''), %s,"
+                                " %s, nullif(%s,''))",
+                        row)
         conn.commit()
         cur.close()
         #
         cur = conn.cursor()
-        cur.execute('UPDATE \"ETL_Building\" SET \"SquareFeet\" = null WHERE \"SquareFeet\"  = .1;')
-        conn.commit()
+        cur.execute(ETL_Building_Count)
+        count_test = cur.fetchone()
+        print("There are now {} records in the ETL Table".format(count_test[0]))
         cur.close()
         cur = conn.cursor()
-        # with open('loopnet_listings_2021_01_03-05_52_57_PM.csv', 'r') as f:
-        #     # Notice that we don't need the `csv` module.
-        #     next(f)  # Skip the header row.
-        #     cur.copy_from(f, "\"ETL_Building\"", sep=',')
-        # conn.commit()
-        # cur.close()
         # #
         # # TODO Statement to check ETL table against db table.
         #     #If ON db table and NOT ETL table than mark "Currently_Listed" as False
