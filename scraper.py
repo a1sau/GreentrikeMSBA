@@ -5,7 +5,7 @@ from random import randint
 import re
 import csv
 from datetime import datetime
-import censusgeocode as cg
+import censusgeocode
 
 
 #Header information
@@ -34,10 +34,10 @@ def grab_placards():  ## NOTE -- this only searches properties that are listed f
         loopnet_links.append(loop_list) #just puts in the url into the list
     return loopnet_links
 
-
 def listing_info(url_list):
     count=0
     Buildings = []
+    cg = censusgeocode.CensusGeocode(benchmark='Public_AR_Current', vintage='ACS2018_Current')
     for list in url_list:
         for item in list:
             count += 1
@@ -45,14 +45,15 @@ def listing_info(url_list):
             url = "{}".format(item)  # Puts the list link in the loop
             r = requests.get(url, headers=headers)
             page_soup = bs(r.content, features="html.parser")
-            site_facts['CS_ID'] = 'LN-' + url[-9:-1]
+            id_array = url.split('/')# Split url to get trailing digits for Primary Key
+            site_facts['CS_ID'] = id_array[-2]
             site_facts['url'] = url  # Adds the url to the dictonary
             loc = page_soup.find("h1", class_="breadcrumbs__crumb breadcrumbs__crumb-title") # Finds the address on page.
             try:    #If location doesn't have address, go to next item)
                 loc = loc.get_text()
             except Exception as err:
                 continue
-            check = loc[-5:].isdigit()  #Checks to see if the postal code is in the address
+            check = loc[-5:].isdigit()  #Checks to see if the postal code is in the address  #TODO change this to use .split()
             if check:
                 a1 = loc.split(", ")
                 # Get AddressLine
@@ -65,7 +66,7 @@ def listing_info(url_list):
                 site_facts['Postal_Code'] = a1[2][-5:]
                 geocode = cg.address(street=site_facts['Address_Line'],city=site_facts['City'],state=site_facts['State'],zipcode=site_facts['Postal_Code'])
                 try:
-                    GEOID = geocode[0]['geographies']['Census Tracts'][0]['GEOID']
+                    GEOID = geocode[0]['geographies']['2010 Census Blocks'][0]['GEOID'][0:12]
                     site_facts['bg_geo_id'] = GEOID
                     print(count, site_facts['Address_Line'], site_facts['City'], GEOID)
                 except Exception as err:
@@ -156,7 +157,7 @@ def listing_info(url_list):
 
                 site_facts["Sale_Leased"] = "Sale"
                 Buildings.append(site_facts)    #Append the this loop to the buildings list
-                sleep(randint(2, 3))
+                sleep(randint(2, 4))
             if is_column == False:  # This loop is used when the listing is in a table.
                 table = page_soup.table
                 table_data = table.find_all('td')
@@ -230,7 +231,7 @@ def listing_info(url_list):
                 site_facts["Sale_Leased"] = "Sale"
 
                 Buildings.append(site_facts)# Add the site_Facts to the Buildings List
-                sleep(randint(2, 3))
+                sleep(randint(2, 4))
     return Buildings
 
 
