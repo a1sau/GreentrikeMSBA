@@ -2,3 +2,5 @@
 census_dev/cenpy/
 /census_dev/config.ini
 /census_dev/bg_zip_city.csv
+/scraper_dev/database.ini
+/scraper_dev/etl_test.py
