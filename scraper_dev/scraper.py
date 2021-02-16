@@ -5,30 +5,39 @@ from random import randint
 import re
 import csv
 from datetime import datetime
-import censusgeocode as cg
+import censusgeocode
 
 
 #Header information
 headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:82.0) Gecko/20100101 Firefox/82.0'}
 
 
-def grab_placards():
+def grab_placards():  ## NOTE -- this only searches properties that are listed for Sale.
     loopnet_links = []
+    page_number = "https://www.loopnet.com/search/commercial-real-estate/pierce-county-wa/for-sale/"
+    r_page = requests.get(page_number, headers=headers)  # Gets the information from the page
+    s = bs(r_page.content, features="html.parser")  # Turns to bs object.
+    t_listings = s.find('span', class_="total-results-paging-digits")
+    t_listings = t_listings.get_text()
+    t_listings = t_listings.strip()
+    t_listings = int(t_listings[-3:])
+    pages = (t_listings//20) +2## uses the number of listings to determine how many pages are in the results.
+    print(f"Found {t_listings} placards across {pages -1} pages.\nStarting to Collect URL's")
         ### This is what go to the search and pulls every listing url from the search page(s)
-    for i in range(1,7):      # Number of pages plus one
+    for i in range(1,pages):      # loops equal to the number of pages in the search
         url = "https://www.loopnet.com/search/commercial-real-estate/pierce-county-wa/for-sale/{}/".format(i)  # Looks to this URL, increasing in page numbers.
         r = requests.get(url, headers=headers)  # Gets the information from the page
         soup = bs(r.content, features="html.parser")  # Turns to bs object.
-        sleep(randint(3,10))    # Sleeps so we dont get banned.
+        sleep(randint(3,7))    # Sleeps so we dont get banned.
         links = soup.find_all('a', class_="subtitle-beta")  # Grabs the placard links that are NOT the featured placard TODO get the featured placard link
         loop_list=[link['href'] for link in links] # isolates the url from the html
         loopnet_links.append(loop_list) #just puts in the url into the list
     return loopnet_links
 
-
 def listing_info(url_list):
     count=0
     Buildings = []
+    cg = censusgeocode.CensusGeocode(benchmark='Public_AR_Current', vintage='ACS2018_Current')
     for list in url_list:
         for item in list:
             count += 1
@@ -36,14 +45,15 @@ def listing_info(url_list):
             url = "{}".format(item)  # Puts the list link in the loop
             r = requests.get(url, headers=headers)
             page_soup = bs(r.content, features="html.parser")
-            site_facts['CS_ID'] = 'LN-' + url[-9:-1]
+            id_array = url.split('/')# Split url to get trailing digits for Primary Key
+            site_facts['CS_ID'] = id_array[-2]
             site_facts['url'] = url  # Adds the url to the dictonary
             loc = page_soup.find("h1", class_="breadcrumbs__crumb breadcrumbs__crumb-title") # Finds the address on page.
             try:    #If location doesn't have address, go to next item)
                 loc = loc.get_text()
             except Exception as err:
                 continue
-            check = loc[-5:].isdigit()  #Checks to see if the postal code is in the address
+            check = loc[-5:].isdigit()  #Checks to see if the postal code is in the address  #TODO change this to use .split()
             if check:
                 a1 = loc.split(", ")
                 # Get AddressLine
@@ -56,8 +66,8 @@ def listing_info(url_list):
                 site_facts['Postal_Code'] = a1[2][-5:]
                 geocode = cg.address(street=site_facts['Address_Line'],city=site_facts['City'],state=site_facts['State'],zipcode=site_facts['Postal_Code'])
                 try:
-                    GEOID = geocode[0]['geographies']['Census Tracts'][0]['GEOID']
-                    site_facts['GeoCode'] = GEOID
+                    GEOID = geocode[0]['geographies']['2010 Census Blocks'][0]['GEOID'][0:12]
+                    site_facts['bg_geo_id'] = GEOID
                     print(count, site_facts['Address_Line'], site_facts['City'], GEOID)
                 except Exception as err:
                     pass
@@ -132,9 +142,22 @@ def listing_info(url_list):
                 # Get Sale Type
                 site_facts['Sale_Type'] = temp_dict1.get('Sale Type', 'N/A')
 
+                site_facts["Picture_url"] = "N/A"
 
+                site_facts["Upload_Date"] = datetime.now().strftime("%Y-%m-%d")
+
+
+                ## TODO Connect to AWS   HOw do you add new records?  how do you edit existing records?
+                    ##
+
+                ## TODO get links to pictures for each listing.  store url to picture within record.
+
+                ## TODO Add currently listed to dictionary.  How will we store the urls that are not active?
+                site_facts["Currently_Listed"] = False
+
+                site_facts["Sale_Leased"] = "Sale"
                 Buildings.append(site_facts)    #Append the this loop to the buildings list
-                sleep(randint(2, 3))
+                sleep(randint(2, 4))
             if is_column == False:  # This loop is used when the listing is in a table.
                 table = page_soup.table
                 table_data = table.find_all('td')
@@ -199,9 +222,16 @@ def listing_info(url_list):
                 # Get Sale Type
                 site_facts['Sale_Type'] = temp_dict2.get('SaleType', 'N/A')
 
-                # Add the site_Facts to the Buildings List
-                Buildings.append(site_facts)
-                sleep(randint(2, 3))
+                site_facts["Picture_url"] = "N/A"
+
+                site_facts["Upload_Date"] = datetime.now().strftime("%Y-%m-%d")
+
+                site_facts["Currently_Listed"] = False
+
+                site_facts["Sale_Leased"] = "Sale"
+
+                Buildings.append(site_facts)# Add the site_Facts to the Buildings List
+                sleep(randint(2, 4))
     return Buildings
 
 
