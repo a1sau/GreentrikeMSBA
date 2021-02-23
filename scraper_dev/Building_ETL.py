@@ -3,7 +3,7 @@ from configparser import ConfigParser
 import config
 import csv
 
-def config(filename='C:/Users/Benjamin/Documents/UWTacoma/MSBA/GreentrikeMSBA/database.ini', section='postgresql'):
+def config(filename='C:/Users/Benjamin/Documents/UWTacoma/MSBA/database.ini', section='postgresql'):
     parser = ConfigParser()# create a parser
     parser.read(filename)# read config file
     # get section, default to postgresql
@@ -26,10 +26,14 @@ def connect(): #Found def config and def connect from https://www.postgresqltuto
         conn = psycopg2.connect(**params)
         ##
         ETL_Building_Count = 'SELECT COUNT(*) FROM "ETL_Building"'
+        Building_Count = 'SELECT COUNT(*) FROM "Building"'
         cur = conn.cursor()
         cur.execute(ETL_Building_Count)
         count_test = cur.fetchone()
-        print("We are starting with {} records in the ETL Table.".format(count_test[0]))
+        print("We are starting with {} records in the ETL_Building Table.".format(count_test[0]))
+        cur.execute(Building_Count)
+        count_test = cur.fetchone()
+        print("We are starting with {} records in the Building Table.".format(count_test[0]))
         cur.close()
         # # TODO copy data from csv to Building ETL
         #     #Ensure that filename will be correct name of most current scrape
@@ -62,17 +66,22 @@ def connect(): #Found def config and def connect from https://www.postgresqltuto
         originallist = cur.fetchall()
         for i in left_exclude_join:  #i[6] is CS_ID  i[-2] is Currently_listed  ("Address_Line", "City", "State", "Postal_Code", "Property_Type", "bg_geo_id", "CS_ID", "url", "Price", "SquareFeet", "Building_Class", "Year_Built", "Sale_Type", "Picture_url", "Upload_Date", "Currently_listed", "Sale_Lease")
             # insert statement
-            insert_command = "INSERT INTO \"Building\" VALUES ('{}', '{}', '{}', '{}', '{}', {}, '{}', '{}', {}, {}, '{}', '{}', '{}', '{}', '{}', {}, '{}')".format(i[0],i[1],i[2],i[3],i[4],i[5],i[6],i[7],i[8],i[9],i[10],i[11],i[12],i[13],i[14],i[15],i[16])
-            cur.execute(insert_command)
+            insert_command = "INSERT INTO \"Building\" VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+            data = (i[0], i[1], i[2], i[3], i[4], i[5], i[6], i[7], i[8], i[9], i[10], i[11], i[12], i[13], i[14], i[15], i[16])
+            cur.execute(insert_command, data)
             # Update Currently listed
             update_command = "UPDATE \"Building\" SET \"Currently_listed\" = true WHERE \"CS_ID\" = '{}'".format(i[6])
             cur.execute(update_command)
+        conn.commit()
         cur.close()
 
         cur = conn.cursor()
         cur.execute(ETL_Building_Count)
         count_test = cur.fetchone()
         print("There are now {} records in the ETL Table".format(count_test[0]))
+        cur.execute(Building_Count)
+        count_test = cur.fetchone()
+        print("There are now {} records in the Building Table.".format(count_test[0]))
         cur.close()
         cur = conn.cursor()
         # #
