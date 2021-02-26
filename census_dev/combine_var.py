@@ -8,6 +8,7 @@ import os
 import sys
 from math import isnan
 
+#Combine variable values by distance
 #method 0=Sum, 1=Average, 2=linear decrease
 def calc_bg(variable='B01003_001E',method=0,distance=1,conn=None):
     if not conn:
@@ -64,7 +65,7 @@ def calcVarName(variable,method,distance=1):
     else:
         return None
 
-
+#Set-up connection to database
 def getConn():
     config = rg2.read_config()
     database_config = config['Database']
@@ -82,7 +83,7 @@ def getConn():
 
     return conn
 
-
+#Function to create csv for combining data for variable list across blockgroups
 def pull_data(var_list=None,outfileVar=None,outfileData=None,distance=1,method=0):
     count=0
     conn=getConn()
