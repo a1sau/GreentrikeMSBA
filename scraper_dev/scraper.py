@@ -46,7 +46,7 @@ def listing_info(url_list):
             r = requests.get(url, headers=headers)
             page_soup = bs(r.content, features="html.parser")
             id_array = url.split('/')# Split url to get trailing digits for Primary Key
-            site_facts['CS_ID'] = id_array[-2]
+            site_facts['CS_ID'] = "LN-" + id_array[-2]
             site_facts['url'] = url  # Adds the url to the dictonary
             loc = page_soup.find("h1", class_="breadcrumbs__crumb breadcrumbs__crumb-title") # Finds the address on page.
             try:    #If location doesn't have address, go to next item)

@@ -3,6 +3,9 @@ import pandas as pd
 import psycopg2
 import reverse_geocoder2 as rg2
 from math import cos, acos, sin, radians
+from multiprocessing import Process, Queue, current_process
+import os
+import numpy as np
 
 
 def distance_lat_long(lat1, lat2, lon1, lon2):
@@ -42,7 +45,38 @@ def eta_time(start_time,complete,total):
             time_left_str = time_left_str+str(remaining_seconds)+" seconds"
     return time_left_str
 
-def pull_data(limit=0):
+def calc_dist(dist_df,geo_df,dis_limit=0,queue=None):
+    count=0
+    list_arr=[]
+    start=timer()
+    row_time=start
+    for index,row in dist_df.iterrows():
+        count+=1
+        if (count % 10 == 0):
+            ptime=round(timer()-row_time,1)
+            row_time=timer()
+            print(current_process().name,"Processing row:",count, "-","Segment Process Time:",ptime, "seconds",
+                  "ETA:",eta_time(start,count-1,len(dist_df)))
+            print()
+        latA=geo_df.loc[index,['LAT']].values[0]
+        longA=geo_df.loc[index,['LONG']].values[0]
+        # print("Index:",index)
+        for col in row.index:
+            # print("Index:",index,"Column",col)
+            latB=geo_df.loc[col,['LAT']].values[0]
+            longB=geo_df.loc[col,['LONG']].values[0]
+            distance=distance_lat_long(latA,latB,longA,longB)
+            if (dis_limit <= 0) or (distance<dis_limit):
+                list_arr.append([index,col,round(distance,1)])
+            # dist_df.loc[[index],[col]]=round(distance,1)
+            # print(count,latA,latB,longA,longB,distance_lat_long(latA,latB,longA,longB))
+    if queue is not None:
+        print("Uploading: PID",current_process().name)
+        queue.put(list_arr)
+    return list_arr
+
+
+def pull_data(limit=0,outfile=None,dis_limit=0):
     count=0
     config = rg2.read_config()
     database_config = config['Database']
@@ -57,6 +91,12 @@ def pull_data(limit=0):
         print('Database could not be connected to:')
         print(e)
         return None
+    try:
+        outputfile = open(file=outfile,mode="w")
+    except:
+        print("Could not open output file:",outfile)
+        return None
+    print("point_a","point_b","distance",sep=",",file=outputfile)
     cur = conn.cursor()
     # cur.execute("select * from \"Block_Group\" as bg where bg.city is null")
     sql_statement = "select bg.bg_geo_id, bg.longitude, bg.latitude from \"Block_Group\" as bg " \
@@ -86,30 +126,39 @@ def pull_data(limit=0):
     # print(dist_df)
     start = timer()
     row_time=start
-    ##TODO Make this multithreaded
-    for index,row in dist_df.iterrows():
-        count+=1
-        if (count % 10 == 0):
-            ptime=round(timer()-row_time,1)
-            row_time=timer()
-            print("Processing row:",count, "-","Segment Process Time:",ptime, "seconds",)
-            print("ETA:",eta_time(start,count-1,len(rows)))
-        latA=geo_df.loc[index,['LAT']].values[0]
-        longA=geo_df.loc[index,['LONG']].values[0]
-        # print("Index:",index)
-        for col in row.index:
-            # print("Index:",index,"Column",col)
-            latB=geo_df.loc[col,['LAT']].values[0]
-            longB=geo_df.loc[col,['LONG']].values[0]
-            distance=distance_lat_long(latA,latB,longA,longB)
-            dist_df.loc[[index],[col]]=round(distance,1)
-            # print(count,latA,latB,longA,longB,distance_lat_long(latA,latB,longA,longB))
-    end=timer()
-    print(dist_df)
-    print("Total Time:",round(end-start,1),"seconds")
-    dist_df.to_csv('distanceB.csv')
+    if len(dist_df)>10:    #don't multiprocess unless there are enough record
+        num_process = os.cpu_count()
+    else:
+        num_process = 1
+    print("CPUs used:",num_process)
+    dist_arr = np.array_split(dist_df,num_process)
+    queue = Queue()
+    processes = []
+    for x in range(num_process):
+        processes.append(Process(name="Section_"+str(x+1),target=calc_dist, args=(dist_arr[x], geo_df, dis_limit, queue)))
+    x = 0
+    for p in processes:
+        p.start()
+        print("Starting Process:",p.name)
+    # for p in processes:
+    #     p.join()
+    results = []
+    for p in processes:
+        results.append(queue.get(block=True))
+    # print(results)
+    print(len(results),len(results[0]))
+    for group in results:
+        print(group)
+        for row in group:
+            print(row[0],row[1],row[2],file=outputfile,sep=",")
+    # print(dist_df)
+    print("Total Time:",round(timer()-start,1),"seconds")
+    # dist_df.to_csv('distanceB.csv')
     return None
 
 
-pull_data(100)
+if __name__ == "__main__":
+    pull_data(limit=200, outfile=r'C:\Users\Lugal\OneDrive\Documents\MSBA\Project\GreentrikeMSBA\census_dev\distanceD.csv',dis_limit=5)
+
+
 
