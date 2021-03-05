@@ -7,3 +7,5 @@ census_dev/cenpy/
 census_dev/.idea/.name
 census_dev/.idea/workspace.xml
 
+.idea/vcs.xml
+.idea/workspace.xml
