@@ -25,8 +25,8 @@ library(psych)
 con <- DBI::dbConnect(odbc::odbc(),
   driver = "PostgreSQL Unicode(x64)",
   database = "TEST",
-  UID      = "bpope", #rstudioapi::askForPassword("Database user"),
-  PWD      = "BenHasNeedyPasswords",#rstudioapi::askForPassword("Database password"),
+  UID      = rstudioapi::askForPassword("Database user"),
+  PWD      = rstudioapi::askForPassword("Database password"),
   server = "greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com",
   port = 5432)
 ```
