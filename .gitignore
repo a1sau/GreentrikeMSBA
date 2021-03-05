@@ -6,6 +6,5 @@ census_dev/cenpy/
 /scraper_dev/etl_test.py
 census_dev/.idea/.name
 census_dev/.idea/workspace.xml
-
 .idea/vcs.xml
 .idea/workspace.xml
