@@ -24,6 +24,7 @@ library(tidyverse)
 library(rattle)
 library(party)
 library(caret)
+library(randomForest)
 ```
 
 ```{r pull_data}
@@ -67,3 +68,17 @@ cm
 all.predict<-predict(default.rt,newdata=df,type="class")
 table(all.predict)
 ```
+
+```{r}
+myrf <- randomForest(Score ~ .,train.df)
+myrf.pred <- predict(myrf, train.df)
+cm<-confusionMatrix(as.factor(myrf.pred),as.factor(train.df$Score))
+cm
+```
+
+```{r}
+myrf.pred <- predict(myrf, valid.df)
+cm2<-confusionMatrix(as.factor(myrf.pred),as.factor(valid.df$Score))
+cm2
+```
+
