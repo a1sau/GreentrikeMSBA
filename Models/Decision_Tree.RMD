@@ -66,6 +66,8 @@ cm
 ```
 ```{r}
 all.predict<-predict(default.rt,newdata=df,type="class")
+census.df.out<-head(cbind(df$BG_Geo_Id,all.predict))
+write.csv(census.df.out,"C:/Users/Lugal/OneDrive/Documents/MSBA/Project/GreentrikeMSBA/Scoring Files/decision_tree_census_predicted_20210307.csv")
 table(all.predict)
 ```
 
@@ -82,3 +84,8 @@ cm2<-confusionMatrix(as.factor(myrf.pred),as.factor(valid.df$Score))
 cm2
 ```
 
+```{r}
+myrf.pred <- predict(myrf, valid.df)
+cm2<-confusionMatrix(as.factor(myrf.pred),as.factor(valid.df$Score))
+cm2
+```
