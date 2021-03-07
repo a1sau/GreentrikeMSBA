@@ -1,0 +1,185 @@
+---
+title: "Combined model"
+author: "Avery Neims"
+date: "3/6/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+combomodel <- read.csv("C:/Users/alleg/Pictures/MSBA EVERYTHING/Model/A1cleaned.csv")
+
+library(MASS)
+library(ggplot2)
+library(caTools)
+```
+
+```{r}
+#comboscore <- merge(combomodel$Average.Building.Score, combomodel$Average.Block.Group.Score)
+
+comboscore <- (combomodel$Average.Building.Score + combomodel$Average.Block.Group.Score)
+cbind(combomodel,comboscore)
+```
+
+
+
+
+```{r}
+plot(comboscore)
+
+```
+
+```{r}
+
+set.seed(101) 
+train.index <- sample(c(1:16, 33))
+train.df <- subset(combomodel, sample == TRUE)
+test.df <- subset(combomodel, sample == FALSE)
+
+sample
+
+```
+```{r}
+ncol(combomodel)
+```
+
+
+```{r}
+combomodel.1 <- lm(comboscore ~ combomodel$City+combomodel$Postal_Code+combomodel$Price+combomodel$Property_Type+combomodel$SquareFeet+combomodel$X..per.sq.ft+combomodel$Sale_Type+combomodel$Block.Group.ID+combomodel$Population+combomodel$Population..3.Miles+combomodel$Households..3.Miles+combomodel$Kids.under.5+combomodel$Percent.Kids.under.5+combomodel$Kids.under.5..3.Miles+combomodel$Kids.5.to.9+combomodel$Percent.Kids.5.to.9+combomodel$Percent.Kids.5.to.9+combomodel$Average.Age+combomodel$Household.income.under.40K..3.Mile+combomodel$Household.income.40K.to.50K..3.Mile+combomodel$Household.income.50K.to.60K..3.Mile+combomodel$Household.income.75K.to.100K..3.Mile+combomodel$Household.income.100K.to.125K..3.Mile+combomodel$Household.income.125K.to.150K..3.Mile+combomodel$Household.income.150K.to.200K..3.Mile+combomodel$Household.income.200K...3.Mile+combomodel$ï..CS_ID, data =  train.df)
+summary(combomodel.1)
+```
+```{r}
+comboinvest <- lm(comboscore ~ combomodel$City)
+summary(comboinvest)
+```
+Postal code is alright
+```{r}
+comboinvest <- lm(comboscore ~ combomodel$Postal_Code)
+summary(comboinvest)
+```
+property type is good indicator
+```{r}
+comboinvest <- lm(comboscore ~ combomodel$Property_Type)
+summary(comboinvest)
+```
+price is high
+```{r}
+comboinvest <- lm(comboscore ~ combomodel$Price)
+summary(comboinvest)
+```
+
+
+```{r}
+comboinvest <- lm(comboscore ~ combomodel$SquareFeet)
+summary(comboinvest)
+```
+
+```{r}
+comboinvest <- lm(comboscore ~ combomodel$X..per.sq.ft)
+summary(comboinvest)
+```
+
+```{r}
+comboinvest <- lm(comboscore ~ combomodel$Sale_Type)
+summary(comboinvest)
+```
+
+```{r}
+comboinvest <- lm(comboscore ~ combomodel$Block.Group.ID)
+summary(comboinvest)
+```
+
+```{r}
+comboinvest <- lm(comboscore ~ combomodel$Population)
+summary(comboinvest)
+```
+
+```{r}
+comboinvest <- lm(comboscore ~ combomodel$Population..3.Miles)
+summary(comboinvest)
+```
+
+```{r}
+comboinvest <- lm(comboscore ~ combomodel$Households..3.Miles)
+summary(comboinvest)
+```
+
+```{r}
+comboinvest <- lm(comboscore ~ combomodel$Kids.under.5)
+summary(comboinvest)
+```
+
+```{r}
+comboinvest <- lm(comboscore ~ combomodel$Kids.under.5..3.Miles)
+summary(comboinvest)
+```
+
+```{r}
+comboinvest <- lm(comboscore ~ combomodel$Kids.under.5..3.Miles)
+summary(comboinvest)
+```
+
+```{r}
+comboinvest <- lm(comboscore ~ combomodel$Kids.5.to.9)
+summary(comboinvest)
+```
+
+```{r}
+comboinvest <- lm(comboscore ~ combomodel$Average.Age)
+summary(comboinvest)
+```
+
+```{r}
+comboinvest <- lm(comboscore ~ combomodel$Household.income.under.40K..3.Mile)
+summary(comboinvest)
+```
+
+```{r}
+comboinvest <- lm(comboscore ~ combomodel$Household.income.50K.to.60K..3.Mile)
+summary(comboinvest)
+```
+
+```{r}
+comboinvest <- lm(comboscore ~ combomodel$Household.income.40K.to.50K..3.Mile)
+summary(comboinvest)
+```
+
+```{r}
+comboinvest <- lm(comboscore ~ combomodel$Household.income.60K.to.75K..3.Mile)
+summary(comboinvest)
+```
+
+```{r}
+comboinvest <- lm(comboscore ~ combomodel$Household.income.75K.to.100K..3.Mile)
+summary(comboinvest)
+```
+
+```{r}
+comboinvest <- lm(comboscore ~ combomodel$Household.income.100K.to.125K..3.Mile)
+summary(comboinvest)
+```
+
+```{r}
+comboinvest <- lm(comboscore ~ combomodel$Household.income.125K.to.150K..3.Mile)
+summary(comboinvest)
+```
+
+```{r}
+comboinvest <- lm(comboscore ~ combomodel$Household.income.150K.to.200K..3.Mile)
+summary(comboinvest)
+```
+
+```{r}
+comboinvest <- lm(comboscore ~ combomodel$Household.income.150K.to.200K..3.Mile)
+summary(comboinvest)
+```
+
+```{r}
+comboinvest <- lm(comboscore ~ combomodel$Property_Type+combomodel$Price+combomodel$Sale_Type+combomodel$Average.Age+combomodel$Household.income.60K.to.75K..3.Mile+combomodel$Household.income.100K.to.125K..3.Mile+combomodel$Household.income.150K.to.200K..3.Mile+combomodel$Postal_Code+combomodel$City)
+summary(comboinvest)
+```
+
+
