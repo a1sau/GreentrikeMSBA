@@ -22,7 +22,6 @@ library(psych)
 
 ```{r}
 # Connect to database
-
 con <- DBI::dbConnect(odbc::odbc(),
   driver = "PostgreSQL Unicode(x64)",
   database = "TEST",
