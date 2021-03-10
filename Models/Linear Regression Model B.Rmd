@@ -21,7 +21,7 @@ library(leaps)
 ```
 
 ```{r pull_data}
-df<-read.csv("C:/Users/Lugal/OneDrive/Documents/MSBA/Project/GreentrikeMSBA/Scoring Files/BG Score Extract 20210305.csv")
+df<-read.csv("C:/Users/Lugal/OneDrive/Documents/MSBA/Project/GreentrikeMSBA/Scoring Files/BG Score Extract 20210309.csv")
 
 colnames(df)[c(1,2)]<-c("BG_Geo_Id","Score")
 colnames(df)

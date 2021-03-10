@@ -23,13 +23,20 @@ library(randomForest)
 ```
 
 ```{r pull_data}
-df<-read.csv("C:/Users/Lugal/OneDrive/Documents/MSBA/Project/GreentrikeMSBA/Scoring Files/BG Score Extract 20210305.csv")
+df<-read.csv("C:/Users/Lugal/OneDrive/Documents/MSBA/Project/GreentrikeMSBA/Scoring Files/BG Score Extract 20210309.csv")
 
 colnames(df)[c(1,2)]<-c("BG_Geo_Id","Score")
 colnames(df)
 df.score<-df[!is.na(df$`Score`),]
+table(df.score$Score)
 df.score<-df.score[,c(2,7,9,20:23)]
+
+df.score$Score[df.score$Score==2.5]<-2
+df.score$Score[df.score$Score==3.5]<-4
+df.score$Score[df.score$Score==1]<-2  #bin 1 with 2.
 df.score$Score<-as.factor(df.score$Score)
+# df.score$Score<-as.factor(as.numeric(as.character(df.score$Score)))
+table(df.score$Score)
 ```
 
 ```{r split_training_bg}
@@ -38,6 +45,8 @@ train.index <- sample(c(1:dim(df.score)[1]), dim(df.score)[1]*0.7)
 train.df <- df.score[train.index, ]
 valid.df <- df.score[-train.index, ]
 table(df.score$Score)
+table(train.df$Score)
+table(valid.df$Score)
 ```
 
 ```{r}
@@ -82,7 +91,7 @@ cm2
 ```
 
 ```{r Build_load}
-df.bld<-read.csv("C:/Users/Lugal/OneDrive/Documents/MSBA/Project/GreentrikeMSBA/Scoring Files/Building Score Extract 20210305.csv")
+df.bld<-read.csv("C:/Users/Lugal/OneDrive/Documents/MSBA/Project/GreentrikeMSBA/Scoring Files/Building Score Extract 20210309.csv")
 colnames(df.bld)[c(1,2,10)]<-c("CS_ID","Score","price_per_sq_ft")
 table(df.bld$Score)
 df.bld$Score[df.bld$Score==2.5]<-3
@@ -137,5 +146,17 @@ full_bld_score<-predict(default.rt.bld,newdata=df.all.bld,type="class")
 table(full_bld_score)
 bld_out_df<-cbind(df.bld$CS_ID,full_bld_score)  #restore CS_ID to list
 write.csv(bld_out_df,"C:/Users/Lugal/OneDrive/Documents/MSBA/Project/GreentrikeMSBA/Scoring Files/decision_tree_building_predicted_20210308.csv")
+```
+
+```{r random_forest_bld_train}
+
+#Random Forests
+myrf <- randomForest(Score ~ .,data=train.df,na.action = na.omit)
+myrf.pred <- predict(myrf, train.df)
+train.rf.cm<-confusionMatrix(as.factor(myrf.pred),as.factor(train.df$Score))
+train.rf.cm
+myrf.pred <- predict(myrf, valid.df)
+valid.rf.cm<-confusionMatrix(as.factor(myrf.pred),as.factor(valid.df$Score))
+valid.rf.cm
 ```
 
