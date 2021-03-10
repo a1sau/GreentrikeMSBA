@@ -1,0 +1,61 @@
+---
+title: "Linear Regression B"
+author: "Brian Krumholz"
+date: "3/9/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir ="C:/Users/Lugal/OneDrive/Documents/MSBA/Project/GreentrikeMSBA/Models")
+
+```
+
+
+```{r}
+library(readxl)
+library(tidyverse)
+library(rattle)
+library(caret)
+library(leaps)
+```
+
+```{r pull_data}
+df<-read.csv("C:/Users/Lugal/OneDrive/Documents/MSBA/Project/GreentrikeMSBA/Scoring Files/BG Score Extract 20210309.csv")
+
+colnames(df)[c(1,2)]<-c("BG_Geo_Id","Score")
+colnames(df)
+df.score<-df[!is.na(df$`Score`),]
+df.score<-df.score[,c(2:23)]
+```
+
+```{r split_training_bg}
+set.seed(7)  
+train.index <- sample(c(1:dim(df.score)[1]), dim(df.score)[1]*0.7)
+train.df <- df.score[train.index, ]
+valid.df <- df.score[-train.index, ]
+table(df.score$Score)
+```
+
+
+```{r backward_selection}
+lm1<-lm(Score ~ .,data=train.df)
+af.lm.step <- step(lm1, direction = "backward")
+summary(lm1)
+# af.lm.step
+```
+
+```{r exhaustive_search}
+search <- regsubsets(Score ~ ., data = train.df, nbest = 1, nvmax = dim(train)[2],
+                     method = "exhaustive")
+sum <- summary(search)
+# sum$which   #show list of all models
+t(t(sum$adjr2)) #show adjusted R^2 for each model
+models <-  order(sum$adjr2, decreasing = T)[1:3]
+sum$which[models,]
+```
+
+```{r}
+##run model on validation set
+```
+

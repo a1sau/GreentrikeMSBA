@@ -1,0 +1,60 @@
+---
+title: "Naive Model"
+author: "Brian Krumholz"
+date: "3/10/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir ="C:/Users/Lugal/OneDrive/Documents/MSBA/Project/GreentrikeMSBA/Models")
+```
+
+
+```{r}
+library(Metrics)
+library(caret)
+```
+
+
+```{r pull_data census}
+df<-read.csv("C:/Users/Lugal/OneDrive/Documents/MSBA/Project/GreentrikeMSBA/Scoring Files/BG Score Extract 20210309.csv")
+
+colnames(df)[c(1,2)]<-c("BG_Geo_Id","Score")
+df.score<-df[!is.na(df$`Score`),]
+df.score<-df.score[,c(2,7,9,20:23)]
+
+
+# df.score$Score<-as.factor(as.numeric(as.character(df.score$Score)))
+table(df.score$Score)
+```
+
+```{r}
+df.score$pred<-3
+rmse(df.score$pred,df.score$Score)
+```
+
+```{r}
+confusionMatrix(as.factor(df.score$pred),as.factor(df.score$Score))
+```
+
+```{r pull_data building}
+df<-read.csv("C:/Users/Lugal/OneDrive/Documents/MSBA/Project/GreentrikeMSBA/Scoring Files/Building Score Extract 20210309.csv")
+
+colnames(df)[c(1,2)]<-c("BG_Geo_Id","Score")
+df.score<-df[!is.na(df$`Score`),]
+df.score<-df.score[,c(2,7,9,20:23)]
+
+
+# df.score$Score<-as.factor(as.numeric(as.character(df.score$Score)))
+table(df.score$Score)
+```
+
+```{r naive_building_predict}
+df.score$pred<-2
+rmse(df.score$pred,df.score$Score)
+```
+
+```{r naive_building_cm}
+confusionMatrix(as.factor(df.score$pred),as.factor(df.score$Score))
+```
