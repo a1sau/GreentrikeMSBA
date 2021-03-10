@@ -39,37 +39,39 @@ new_building$Investment_or_Owner_User <- new_building$Sale_Type == "Investment o
 new_building
 
 
-#in the dataset, I am imputing for the missing prices and I will be removing the rows that does not have squarefeet and price per square feet. After realizing that there is an accuracy issue with finding price per square feet of land vs what would be of a building on the land, they will be removed.
+#in the dataset, I am imputing for the missing prices and I will be removing the rows that does not have squarefeet and price per square feet. After realizing 
+Price <- (new_building$Price - min(new_building$Price))/(max(new_building$Price) - min(new_building$Price))
+SquareFeet <- (new_building$SquareFeet - min(new_building$SquareFeet))/(max(new_building$SquareFeet) - min(new_building$SquareFeet))
+Price.SQFT <- (new_building$Price.SQFT - min(new_building$Price.SQFT))/(max(new_building$Price.SQFT) - min(new_building$Price.SQFT))
+Tacoma <- new_building$Tacoma*1
+Puyallup <- new_building$Puyallup*1
+Land <- new_building$Land*1
+Multifamily <- new_building$Multifamily*1
+Industrial <- new_building$Industrial*1
+Office <- new_building$Office*1
+Retail <- new_building$Retail*1
+Investment <- new_building$Investment*1
+OwnerUser <- new_building$OwnerUser*1
+InvestmentNNN <- new_building$InvestmentNNN*1
+Investment_or_Owner_User <- new_building$Investment_or_Owner_User*1
 
+building_final <- data.frame(Price, SquareFeet, Price.SQFT, Tacoma, Puyallup, Land, Multifamily, Industrial, Office, Retail, Investment, OwnerUser, InvestmentNNN, Investment_or_Owner_User)
 
-new_building$Price <- (new_building$Price - min(new_building$Price))/(max(new_building$Price) - min(new_building$Price))
-new_building$SquareFeet <- (new_building$SquareFeet - min(new_building$SquareFeet))/(max(new_building$SquareFeet) - min(new_building$SquareFeet))
-new_building$Price.SQFT <- (new_building$Price.SQFT - min(new_building$Price.SQFT))/(max(new_building$Price.SQFT) - min(new_building$Price.SQFT))
-new_building$Tacoma <- new_building$Tacoma*1
-new_building$Puyallup <- new_building$Puyallup*1
-new_building$Land <- new_building$Land*1
-new_building$Multifamily <- new_building$Multifamily*1
-new_building$Industrial <- new_building$Industrial*1
-new_building$Office <- new_building$Office*1
-new_building$Retail <- new_building$Retail*1
-new_building$Investment <- new_building$Investment*1
-new_building$OwnerUser <- new_building$OwnerUser*1
-new_building$InvestmentNNN <- new_building$InvestmentNNN*1
-new_building$Investment_or_Owner_User <- new_building$Investment_or_Owner_User*1
+building_final
 
 #check for duplicates
-duplicated(new_building$Price)
+duplicated(building_final$Price)
 
 #remove rows with duplicates
-new_building <- new_building[!duplicated(new_building[ , "Price"]),]
+building_final <- building_final[!duplicated(building_final[ , "Price"]),]
 
-view(new_building)
+view(building_final)
 
 #check for NA's
-str(new_building)
-sum(is.na(new_building$Price))
-sum(is.na(new_building$SquareFeet))
-sum(is.na(new_building$Price.SQFT))
+str(building_final)
+sum(is.na(building_final$Price))
+sum(is.na(building_final$SquareFeet))
+sum(is.na(building_final$Price.SQFT))
 
 
 
@@ -84,34 +86,29 @@ library(dplyr)
 #load model
 load(file="buildingneunetmodel")
 
-building_predictions <- predict(bld_neun, new_building, reps = 10, all.units = FALSE)
+building_predictions <- predict(bld_neun, building_final, reps = 10, all.units = FALSE)
 
 building_predictions
 
-og_buildings <- read.csv("NeuralNetSet.csv")
-
-setwd("D:/Templates/UW Stuff/Classes/MSBA/Classes/PM Stuff for me/NeuralNet")
-new_building_for_csv <- read.csv("Building.csv")
-
-#check for duplicates
-duplicated(new_building_for_csv$Price)
-
-#remove rows with duplicates
-new_building_for_csv <- new_building_for_csv[!duplicated(new_building_for_csv[ , "Price"]),]
 
 
-new_building_for_csv
+
+
+
 
 #denormalize predicted score
-Score.Predict <- building_predictions * (max(og_buildings$Score)-min(og_buildings$Score)) + min(og_buildings$Score)
-Score.Predict
+og_building <- read.csv("NeuralNetSet.csv")
+og_building$Score
 
-final_building <- cbind(new_building_for_csv, Score.Predict)
+unnorm_building_predictions <- (building_predictions) * (max(og_building$Score) - min(og_building$Score)) + min(og_building$Score)
+unnorm_building_predictions
+
+final_building$Score <- unnorm_building_predictions
 
 final_building
 
 setwd("D:/Templates/UW Stuff/Classes/MSBA/Classes/PM Stuff for me/NeuralNet")
-write.csv(final_building, "D:/Templates/UW Stuff/Classes/MSBA/Classes/PM Stuff for me/NeuralNet\\Enrique_Building_Score.csv", row.names = FALSE)
+write.csv(final_building, "D:/Templates/UW Stuff/Classes/MSBA/Classes/PM Stuff for me/NeuralNet\\Final_Enrique_Building_Score.csv", row.names = FALSE)
 ```
 
 ```{r}
@@ -133,7 +130,7 @@ new_census
 duplicated(new_census$Block.Group.ID)
 
 #remove rows with duplicates
-new_census <- new_census[!duplicated(new_census[ , "Block.Group"]),]
+#new_census <- new_census[!duplicated(new_census[ , "Block.Group"]),]
 
 new_census
 
@@ -209,6 +206,15 @@ load(file="censusneunetmodel")
 new_census.predict <- predict(census_neun, new_census, rep = 10, all.units = FALSE)
 new_census.predict
 
+#denormalize
+final_census_predict <- (new_census.predict * 2) + 3
+final_census_predict
+
+final_new_census <- read.csv("New_Census.csv")
+
+final_new_census$Predicted.Score <- final_census_predict
+final_new_census
+
 
 #remove columns
 #drop <- c("X", "X.1", "X.2", "X.3", "X.4", "X.5")
@@ -218,75 +224,9 @@ new_census.predict
 library(tibble)
 library(dplyr)
 
-#load model
 
-og_census <- read.csv("NeunetCensusSet.csv")
-
-
-
-
-#to prove that this works
-#normalize 0 to 1
-og_census$Area.Score.Norm <- (og_census$Area.Score - min(og_census$Area.Score))/(max(og_census$Area.Score) - min(og_census$Area.Score))
-og_census$Area.Score.Norm
-
-#0 to 1 to -1 to 1
-og_census$Area.Score.NegNorm <- (2 * ((og_census$Area.Score.Norm - min(og_census$Area.Score.Norm))/max(og_census$Area.Score.Norm) - min(og_census$Area.Score.Norm))) - 1
-og_census$Area.Score.NegNorm
-
-og_census
-
-#-1 to 1 to 0 to 1
-og_census$Area.Score.Predict.Norm <- (og_census$Area.Score.NegNorm-1)*(max(og_census$Area.Score.Norm)-min(og_census$Area.Score.Norm))/2+min(og_census$Area.Score.Norm)
-og_census$Area.Score.Predict.Norm
-
-og_census
-
-#0 to 1 to 1- to 5
-og_census$Area.Score.Predict <- og_census$Area.Score.Predict.Norm * (max(og_og_census$Area.Score)-min(og_og_census$Area.Score)) + min(og_og_census$Area.Score)
-og_census$Area.Score.Predict
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#normalize area.score to help with the denormalization of the predicted score
-og_census2$Area.Score <- (og_census2$Area.Score - min(og_census2$Area.Score))/(max(og_census2$Area.Score) - min(og_census2$Area.Score))
-og_census2$Area.Score
 
 setwd("D:/Templates/UW Stuff/Classes/MSBA/Classes/PM Stuff for me/NeuralNet")
-new_census_for_csv <- read.csv("New_Census.csv")
-
-
-#denormalize predicted score (-1:1) to (0:1)
-unnomtanh <- ((new_census.predict-1)*(max(og_census2$Area.Score)-min(og_census2$Area.Score)))/2+min(og_census2$Area.Score)
-unnomtanh
-
-
-#denormalize
-Area.Score.Predict <- unnomtanh * (max(og_census$Area.Score)-min(og_census$Area.Score)) + min(og_census$Area.Score)
-Area.Score.Predict
-
-final_building <- cbind(new_building_for_csv, Score.Predict)
-
-final_building
-
-setwd("D:/Templates/UW Stuff/Classes/MSBA/Classes/PM Stuff for me/NeuralNet")
-write.csv(final_building, "D:/Templates/UW Stuff/Classes/MSBA/Classes/PM Stuff for me/NeuralNet\\Enrique_Building_Score.csv", row.names = FALSE)
+write.csv(final_new_census, "D:/Templates/UW Stuff/Classes/MSBA/Classes/PM Stuff for me/NeuralNet\\Final_Enrique_Census_Score.csv", row.names = FALSE)
 ```
 
