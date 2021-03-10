@@ -85,7 +85,7 @@ train.norm.df[, 3:26] <- predict(norm.values, train.df[,3:26])
 valid.norm.df[, 3:26] <- predict(norm.values, valid.df[,3:26])
 
 
-k.num <-length(train.df)
+k.num <-nrow(train.df)
 bg.3ms.rmse.df <- data.frame(k = seq(1, k.num, 1), RMSE_value = rep(0, k.num))
 # compute knn for different k on validation.
 
@@ -99,7 +99,7 @@ min(bg.3ms.rmse.df)
 bg.3ms.rmse.df
 
 ### Looks like k = is the highest consistency 
-knn.model <- class::knn(train = train.norm.df[,3:26], test = valid.norm.df[,3:26], cl = train.norm.df[,2],k =4)
+knn.model <- class::knn(train = train.norm.df[,3:26], test = valid.norm.df[,3:26], cl = train.norm.df[,2],k =8)
 confusionMatrix(as.factor(knn.model), as.factor(valid.norm.df$score))
 
 RMSE(as.numeric(knn.model), valid.norm.df[,2])
@@ -110,7 +110,7 @@ RMSE(as.numeric(knn.model), valid.norm.df[,2])
 # Predict new records for 
 
 #Set test name
-model_id ="3MS_KNN_v.2"
+model_id ="3MS_KNN_v.3"
 
 ##Normalize entire scored dataset
 bg.score.3ms.norm <- bg.score.3ms
@@ -125,7 +125,7 @@ bg.new.records.3ms.norm <- bg.new.records.3ms
 bg.new.records.3ms.norm[,-1] <- predict(norm.values, bg.new.records.3ms[,-1])
 
 knn.model <- class::knn(train = train.norm.df[,3:26], test = valid.norm.df[,3:26], cl = train.norm.df[,2],k =4)
-knn.pred.new <- class::knn(train = bg.score.3ms.norm[,3:26], test = bg.new.records.3ms.norm[,2:25], cl = bg.score.3ms.norm[,2] ,k=4)
+knn.pred.new <- class::knn(train = bg.score.3ms.norm[,3:26], test = bg.new.records.3ms.norm[,2:25], cl = bg.score.3ms.norm[,2] ,k=8)
 summary(knn.pred.new)
 
 ```
@@ -137,6 +137,6 @@ outscore <- as.data.frame(knn.pred.new)
 output.csv <- cbind(model_id, bg.new.records.3ms.norm$bg_geo_id, outscore, date())
 setnames(output.csv, (c("model_id", "bg_geo_id", "score", "date_obtained")))
 
-write.csv(output.csv,"C:/Users/Benjamin/Documents/UWTacoma/MSBA/Aplied Project with Greentrike/KNN MODELS\\bg_KNN_output_v.2.csv",row.names = FALSE)
+write.csv(output.csv,"C:/Users/Benjamin/Documents/UWTacoma/MSBA/Aplied Project with Greentrike/KNN MODELS\\bg_KNN_output_v.3.csv",row.names = FALSE)
 ```
 
