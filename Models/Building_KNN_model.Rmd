@@ -34,14 +34,14 @@ con <- DBI::dbConnect(odbc::odbc(),
 
 ```{r}
 #Get list of building that have scores for them 
-building.scores <- dbGetQuery(con,'SELECT B."CS_ID", BS."Score", "City", "Price", "SquareFeet", "Building_Class", "Sale_Type"
-FROM "Building" B
-RIGHT JOIN "Building_Score" BS on B."CS_ID" = BS.cs_id;')
+building.scores <- dbGetQuery(con, 'SELECT B."CS_ID", BS."Score", "City", "Price", "SquareFeet", "Building_Class", "Sale_Type"
+                                    FROM "Building" B
+                                    RIGHT JOIN "Building_Score" BS on B."CS_ID" = BS.cs_id;')
 
 new.buildings <- dbGetQuery(con, 'SELECT B."CS_ID", B."City", B."Price", B."SquareFeet", B."Building_Class",  B."Sale_Type"
-FROM "Building" B
-LEFT JOIN "Building_Score" BS on B."CS_ID" = BS.cs_id
-WHERE "Score" IS NULL;')
+                                  FROM "Building" B
+                                  LEFT JOIN "Building_Score" BS on B."CS_ID" = BS.cs_id
+                                  WHERE "Score" IS NULL;')
 
 ```
 
@@ -52,6 +52,8 @@ WHERE "Score" IS NULL;')
 build.scores <- building.scores
 
 build.scores$SquareFeet <- (ifelse(is.na(build.scores$SquareFeet),0,build.scores$SquareFeet))
+build.scores$Price <- ifelse(is.na(build.scores$Price),100000000,build.scores$Price)
+build.scores$Score <- as.factor(build.scores$Score)
 
 build.scores$Sale_Type[build.scores$Sale_Type =="OwnerUser"] <- "Owner User"
 build.scores$Sale_Type[build.scores$Sale_Type =="Investment or Owner User"] <- "Both"
@@ -69,7 +71,7 @@ build.scores <- cbind(build.scores, build_class, sale_type)
 
 ```{r}
 #Split and normalize data
-train_index <- sample(row.names(build.scores),0.75*dim(build.scores)[1])
+train_index <- sample(row.names(build.scores),0.7*dim(build.scores)[1])
 valid_index <- setdiff(row.names(build.scores), train_index)
 
 train.df <- build.scores[train_index,]
@@ -88,16 +90,19 @@ valid.norm.df[, 4:5] <- predict(norm.values, valid.df[,4:5])
 
 ```{r}
 #run KNN tests to find best k
-
-build.rmse.df <- data.frame(k = seq(1, 36, 1), RMSE_rate = rep(0, 36))
+k.num = nrow(train.df)
+build.accuracy.df <- data.frame(k = seq(1, k.num, 1), accuracy = rep(0, k.num))
 # compute knn for different k on validation.
-for(i in 1:36) {
+for(i in 1:k.num) {
   knn.pred<- class::knn(train = train.norm.df[,4:12], test = valid.norm.df[,4:12], cl = train.norm.df[,2],k=i)
   
-  build.rmse.df[i,2] <- RMSE(as.numeric(as.character(knn.pred)), valid.norm.df[,2])
+  build.accuracy.df[i,2] <- confusionMatrix(knn.pred, valid.norm.df$Score)$overall[1]
 }
-build.rmse.df
+max(build.accuracy.df)
+build.accuracy.df
 
+knn.model<- class::knn(train = train.norm.df[,4:12], test = valid.norm.df[,4:12], cl = train.norm.df[,2],k=7)
+confusionMatrix(as.factor(knn.model), as.factor(valid.norm.df$Score))
 
 ```
 
@@ -142,11 +147,12 @@ build.norm.scores
 
 ```{r}
 #Run KNN on new records
-Model_id <- "KNN_v.1"
+Model_id <- "Build_KNN_v.3"
 
-knn.pred.new<- class::knn(train = build.norm.scores[,4:13], test = new.buildings.norm[,3:12], cl = build.norm.scores[,2],k=6)
+knn.pred.new<- class::knn(train = build.norm.scores[,4:13], test = new.buildings.norm[,3:12], cl = build.norm.scores[,2],k=7)
 
 summary(knn.pred.new)
+
 ```
 
 ```{r}
@@ -154,7 +160,7 @@ outscore <- as.data.frame(knn.pred.new)
 output.csv <- cbind(new.buildings.norm$CS_ID, Model_id, outscore, date())
 setnames(output.csv, (c( "cs_id", "model_id", "score", "date_calculated")))
 
-write.csv(output.csv,"C:/Users/Benjamin/Documents/UWTacoma/MSBA/Aplied Project with Greentrike/KNN MODELS\\Building_KNN_v.1_output.csv",row.names = FALSE)
+write.csv(output.csv,"C:/Users/Benjamin/Documents/UWTacoma/MSBA/Aplied Project with Greentrike/KNN MODELS\\Building_KNN_v.3_output.csv",row.names = FALSE)
 
 ```
 

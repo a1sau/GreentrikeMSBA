@@ -73,7 +73,7 @@ cm
 ```{r score_all_census}
 all.predict<-predict(default.rt,newdata=df,type="class")
 census.df.out<-cbind(df$BG_Geo_Id,all.predict)
-write.csv(census.df.out,"C:/Users/Lugal/OneDrive/Documents/MSBA/Project/GreentrikeMSBA/Scoring Files/decision_tree_census_predicted_20210307.csv")
+write.csv(census.df.out,"C:/Users/Lugal/OneDrive/Documents/MSBA/Project/GreentrikeMSBA/Scoring Files/decision_tree_census_predicted_20210309.csv")
 table(all.predict)
 ```
 
@@ -145,7 +145,7 @@ cm
 full_bld_score<-predict(default.rt.bld,newdata=df.all.bld,type="class")
 table(full_bld_score)
 bld_out_df<-cbind(df.bld$CS_ID,full_bld_score)  #restore CS_ID to list
-write.csv(bld_out_df,"C:/Users/Lugal/OneDrive/Documents/MSBA/Project/GreentrikeMSBA/Scoring Files/decision_tree_building_predicted_20210308.csv")
+write.csv(bld_out_df,"C:/Users/Lugal/OneDrive/Documents/MSBA/Project/GreentrikeMSBA/Scoring Files/decision_tree_building_predicted_20210309.csv")
 ```
 
 ```{r random_forest_bld_train}
