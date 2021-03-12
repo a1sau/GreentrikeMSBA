@@ -1,0 +1,86 @@
+---
+title: "Cluster Analysis"
+author: "Brian Krumholz"
+date: "3/12/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r pull_data}
+df<-read.csv("C:/Users/Lugal/OneDrive/Documents/MSBA/Project/GreentrikeMSBA/Scoring Files/BG Score Extract 20210309.csv")
+
+colnames(df)[c(1,2)]<-c("BG_Geo_Id","Score")
+colnames(df)
+df.score<-df[!is.na(df$`Score`),]
+df.score$Score<-round(df.score$Score,0)
+df.score<-df.score[,c(2:23)]
+```
+
+```{r}
+
+```
+
+
+```{r}
+
+df.norm <- as.data.frame(sapply(df.score[c(2:22)], scale))
+d.norm <- dist(df.norm, method = "euclidean")
+```
+
+
+```{r}
+hc1<-hclust(d.norm,method="ward.D")
+plot(hc1,hang=-1)
+```
+
+```{r}
+#3 clusters
+memb1 <- cutree(hc1, k = 3)
+table(memb1)
+#4 clusters
+memb2 <- cutree(hc1, k = 4)
+table(memb2)
+#5 clusters
+memb3 <- cutree(hc1, k = 5)
+table(memb3)
+```
+
+```{r}
+row.names(df.norm) <- paste(memb1,":", seq(1,dim(df.norm)[1]), sep = "")
+
+# plot heatmap 
+# rev() reverses the color mapping to large = dark
+heatmap(as.matrix(df.norm[order(memb1),]), Colv = NA, hclustfun = function(d.norm) hclust(d.norm,method = "ward.D"), 
+        col=rev(paste("gray",1:99,sep="")))
+```
+
+```{r}
+row.names(df.norm) <- paste(memb2,":", seq(1,dim(df.norm)[1]), sep = "")
+
+# plot heatmap 
+# rev() reverses the color mapping to large = dark
+heatmap(as.matrix(df.norm[order(memb2),]), Colv = NA, hclustfun = function(d.norm) hclust(d.norm,method = "ward.D"), 
+        col=rev(paste("gray",1:99,sep="")))
+```
+
+```{r}
+row.names(df.norm) <- paste(memb3,":", seq(1,dim(df.norm)[1]), sep = "")
+
+# plot heatmap 
+# rev() reverses the color mapping to large = dark
+heatmap(as.matrix(df.norm[order(memb3),]), Colv = NA, hclustfun = function(d.norm) hclust(d.norm,method = "ward.D"), 
+        col=rev(paste("gray",1:99,sep="")))
+```
+
+```{r}
+df2<-df.score
+df2$Cluster<-memb3
+```
+
+
+```{r}
+aggregate(. ~ Cluster,data=df2, FUN = mean)
+```
