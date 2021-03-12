@@ -125,6 +125,8 @@ new.buildings$Price  <- ifelse(is.na(new.buildings$Price),100000000,new.building
 new.buildings$Sale_Type[new.buildings$Sale_Type =="OwnerUser"] <- "Owner User"
 new.buildings$Sale_Type[new.buildings$Sale_Type =="Investment or Owner User"] <- "Both"
 new.buildings$Sale_Type[new.buildings$Sale_Type =="InvestmentorOwnerUser"] <- "Both"
+new.buildings$Sale_Type[new.buildings$Sale_Type =="Investment NNN"] <- "Investment"
+
 
 build_class.new <- as.data.frame(dummy.code(new.buildings$Building_Class))
 sale_type.new <- as.data.frame(dummy.code(new.buildings$Sale_Type))
@@ -139,28 +141,33 @@ new.buildings.norm[,3:4] <- predict(norm.values, new.buildings[3:4])
 
 new.buildings.norm
 first <- build.norm.scores[,c(1,2,3,4,5,8,7,6)]
-first$A <- 0 
+#first$A <- 0 
 second <-build.norm.scores[,c(9,11,10,12)]
 build.norm.scores <- cbind(first, second)
 build.norm.scores
+#add in scored buildings to our new dataset.
+new.buildings.norm.t <- rbind(new.buildings.norm[,c(1:8,11,9,10)] ,build.norm.scores[,c(1,3:12)]) 
 ```
 
 ```{r}
 #Run KNN on new records
-Model_id <- "Build_KNN_v.3"
+Model_id <- "Build_KNN_v.4"
 
-knn.pred.new<- class::knn(train = build.norm.scores[,4:13], test = new.buildings.norm[,3:12], cl = build.norm.scores[,2],k=7)
+knn.pred.new<- class::knn(train = build.norm.scores[,4:12], test = new.buildings.norm.t[,3:11], cl = build.norm.scores[,2],k=7)
 
 summary(knn.pred.new)
 
+new.buildings.norm.t[56:123,]
+valid.norm.df
+confusionMatrix(knn.pred.new[56:123], build.norm.scores$Score)
 ```
 
 ```{r}
 outscore <- as.data.frame(knn.pred.new)
-output.csv <- cbind(new.buildings.norm$CS_ID, Model_id, outscore, date())
+output.csv <- cbind(new.buildings.norm.t$CS_ID, Model_id, outscore, date())
 setnames(output.csv, (c( "cs_id", "model_id", "score", "date_calculated")))
 
-write.csv(output.csv,"C:/Users/Benjamin/Documents/UWTacoma/MSBA/Aplied Project with Greentrike/KNN MODELS\\Building_KNN_v.3_output.csv",row.names = FALSE)
+write.csv(output.csv,"C:/Users/Benjamin/Documents/UWTacoma/MSBA/Aplied Project with Greentrike/KNN MODELS\\Building_KNN_v.4_output.csv",row.names = FALSE)
 
 ```
 
