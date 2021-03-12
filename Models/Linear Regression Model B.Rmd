@@ -66,9 +66,40 @@ confusionMatrix(as.factor(round(train.pred,0)),as.factor(train.df$Score))
 confusionMatrix(as.factor(round(valid.pred,0)),as.factor(valid.df$Score))
 ```
 
-```{r}
-output.df<-cbind(df$BG_Geo_Id,round(predict(lm1,df)),rep(1,dim(df)[1]),rep("2021-03-12",dim(df)[1]))
+```{r include=FALSE, eval=FALSE}
+output.df<-cbind(as.character(df$BG_Geo_Id),round(predict(lm1,df)),rep(1,dim(df)[1]),rep("2021-03-12",dim(df)[1]))
 colnames(output.df)<-c("bg_geo_id","score","model_id","date_obtained")
-write.csv(output.df,"linear_model1_out_20210312.csv")
+write.csv(output.df,"linear_model1_out_20210312.csv",row.names = FALSE)
 ```
 
+```{r}
+print(paste(seq(0,22),sum$which[6,]))
+```
+
+```{r}
+lm2<-lm(Score ~ .,data=train.df[,c(1,2,3,12,13,17,19,22)])
+train.pred<-predict(lm2,newdata=train.df)
+valid.pred<-predict(lm2,newdata=valid.df)
+RMSE(train.pred,train.df$Score)
+RMSE(valid.pred,valid.df$Score)
+confusionMatrix(as.factor(round(train.pred,0)),as.factor(train.df$Score))
+confusionMatrix(as.factor(round(valid.pred,0)),as.factor(valid.df$Score))
+summary(lm2)
+```
+
+```{r}
+lm2<-lm(Score ~ .,data=train.df[,c(1,13)])
+train.pred<-predict(lm2,newdata=train.df)
+valid.pred<-predict(lm2,newdata=valid.df)
+RMSE(train.pred,train.df$Score)
+RMSE(valid.pred,valid.df$Score)
+confusionMatrix(as.factor(round(train.pred,0)),as.factor(train.df$Score))
+confusionMatrix(as.factor(round(valid.pred,0)),as.factor(valid.df$Score))
+summary(lm2)
+```
+
+```{r include=FALSE, eval=FALSE}
+output.df<-cbind(as.character(df$BG_Geo_Id),round(predict(lm2,df)),rep(11,dim(df)[1]),rep("2021-03-12",dim(df)[1]))
+colnames(output.df)<-c("bg_geo_id","score","model_id","date_obtained")
+write.csv(output.df,"linear_model1_out_20210312B.csv",row.names = FALSE)
+```
