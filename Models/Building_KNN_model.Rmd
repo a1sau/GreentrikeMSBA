@@ -1,0 +1,161 @@
+---
+title: "Building_KNN_Model"
+author: "Benjamin Pope"
+date: "3/5/2021"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(DBI)
+library(odbc)
+library(data.table)
+library(caret)
+library(FNN)
+library(class)
+library(psych)
+```
+
+```{r}
+# Connect to database
+
+con <- DBI::dbConnect(odbc::odbc(),
+  driver = "PostgreSQL Unicode(x64)",
+  database = "TEST",
+  UID      = rstudioapi::askForPassword("Database user"),
+  PWD      = rstudioapi::askForPassword("Database password"),
+  server = "greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com",
+  port = 5432)
+```
+
+```{r}
+#Get list of building that have scores for them 
+building.scores <- dbGetQuery(con,'SELECT B."CS_ID", BS."Score", "City", "Price", "SquareFeet", "Building_Class", "Sale_Type"
+FROM "Building" B
+RIGHT JOIN "Building_Score" BS on B."CS_ID" = BS.cs_id;')
+
+new.buildings <- dbGetQuery(con, 'SELECT B."CS_ID", B."City", B."Price", B."SquareFeet", B."Building_Class",  B."Sale_Type"
+FROM "Building" B
+LEFT JOIN "Building_Score" BS on B."CS_ID" = BS.cs_id
+WHERE "Score" IS NULL;')
+
+```
+
+
+```{r}
+#Look at and clean data
+
+build.scores <- building.scores
+
+build.scores$SquareFeet <- (ifelse(is.na(build.scores$SquareFeet),0,build.scores$SquareFeet))
+
+build.scores$Sale_Type[build.scores$Sale_Type =="OwnerUser"] <- "Owner User"
+build.scores$Sale_Type[build.scores$Sale_Type =="Investment or Owner User"] <- "Both"
+build.scores$Sale_Type[build.scores$Sale_Type =="InvestmentorOwnerUser"] <- "Both"
+
+build_class <- as.data.frame(dummy.code(build.scores$Building_Class))
+sale_type <- as.data.frame(dummy.code(build.scores$Sale_Type))
+
+#remove original and replace with dummy var.
+colnames(build.scores)
+build.scores <- build.scores[,-c(6:7)]
+build.scores <- cbind(build.scores, build_class, sale_type)
+
+```
+
+```{r}
+#Split and normalize data
+train_index <- sample(row.names(build.scores),0.75*dim(build.scores)[1])
+valid_index <- setdiff(row.names(build.scores), train_index)
+
+train.df <- build.scores[train_index,]
+valid.df <- build.scores[valid_index,]
+
+# Normalize after split.
+# Just run preprocess on training data to get training mean and SD for normalization
+norm.values <- preProcess(train.df[,4:5], method = c("center","scale"))
+# Create normalized df first so you can omit the correct columns
+train.norm.df <- train.df
+valid.norm.df <- valid.df
+#Insert normalized data.  Notice how you are essentially predicting the Standardization since we have the mean and SD captured already.  
+train.norm.df[, 4:5] <- predict(norm.values, train.df[,4:5])
+valid.norm.df[, 4:5] <- predict(norm.values, valid.df[,4:5])
+```
+
+```{r}
+#run KNN tests to find best k
+
+build.rmse.df <- data.frame(k = seq(1, 36, 1), RMSE_rate = rep(0, 36))
+# compute knn for different k on validation.
+for(i in 1:36) {
+  knn.pred<- class::knn(train = train.norm.df[,4:12], test = valid.norm.df[,4:12], cl = train.norm.df[,2],k=i)
+  
+  build.rmse.df[i,2] <- RMSE(as.numeric(as.character(knn.pred)), valid.norm.df[,2])
+}
+build.rmse.df
+
+
+```
+
+```{r}
+#Normalize and prepare entire scored set 
+build.norm.scores <- rbind(train.norm.df, valid.norm.df)
+```
+
+```{r}
+#Normalize and prepare new.records
+
+#square feet to 0, dummy var on sale_type, property_type and Build_class
+# set Sale_type to three categories
+# Set long property_type office
+
+
+new.buildings$SquareFeet <- (ifelse(is.na(new.buildings$SquareFeet),0,new.buildings$SquareFeet))
+new.buildings$Price  <- ifelse(is.na(new.buildings$Price),100000000,new.buildings$Price)
+
+new.buildings$Sale_Type[new.buildings$Sale_Type =="OwnerUser"] <- "Owner User"
+new.buildings$Sale_Type[new.buildings$Sale_Type =="Investment or Owner User"] <- "Both"
+new.buildings$Sale_Type[new.buildings$Sale_Type =="InvestmentorOwnerUser"] <- "Both"
+
+build_class.new <- as.data.frame(dummy.code(new.buildings$Building_Class))
+sale_type.new <- as.data.frame(dummy.code(new.buildings$Sale_Type))
+
+#remove original and replace with dummy var.
+
+new.buildings <- new.buildings[,-c(5,6)]
+new.buildings <- cbind(new.buildings, build_class.new,sale_type.new)
+
+new.buildings.norm <- new.buildings
+new.buildings.norm[,3:4] <- predict(norm.values, new.buildings[3:4])
+
+new.buildings.norm
+first <- build.norm.scores[,c(1,2,3,4,5,8,7,6)]
+first$A <- 0 
+second <-build.norm.scores[,c(9,11,10,12)]
+build.norm.scores <- cbind(first, second)
+build.norm.scores
+```
+
+```{r}
+#Run KNN on new records
+Model_id <- "KNN_v.1"
+
+knn.pred.new<- class::knn(train = build.norm.scores[,4:13], test = new.buildings.norm[,3:12], cl = build.norm.scores[,2],k=6)
+
+summary(knn.pred.new)
+```
+
+```{r}
+outscore <- as.data.frame(knn.pred.new)
+output.csv <- cbind(new.buildings.norm$CS_ID, Model_id, outscore, date())
+setnames(output.csv, (c( "cs_id", "model_id", "score", "date_calculated")))
+
+write.csv(output.csv,"C:/Users/Benjamin/Documents/UWTacoma/MSBA/Aplied Project with Greentrike/KNN MODELS\\Building_KNN_v.1_output.csv",row.names = FALSE)
+
+```
+
+
