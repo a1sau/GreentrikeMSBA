@@ -101,7 +101,11 @@ for(i in 1:k.num) {
 max(build.accuracy.df)
 build.accuracy.df
 
+knn.model.train<- class::knn(train = train.norm.df[,4:12], test = train.norm.df[,4:12], cl = train.norm.df[,2],k=7)
+confusionMatrix(as.factor(knn.model.train), as.factor(train.norm.df$Score))
+
 knn.model<- class::knn(train = train.norm.df[,4:12], test = valid.norm.df[,4:12], cl = train.norm.df[,2],k=7)
+
 confusionMatrix(as.factor(knn.model), as.factor(valid.norm.df$Score))
 
 ```
@@ -160,6 +164,7 @@ summary(knn.pred.new)
 new.buildings.norm.t[56:123,]
 valid.norm.df
 confusionMatrix(knn.pred.new[56:123], build.norm.scores$Score)
+RMSE(as.numeric(knn.pred.new[56:123]), as.numeric(build.norm.scores$Score))
 ```
 
 ```{r}
