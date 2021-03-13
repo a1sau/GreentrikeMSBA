@@ -78,7 +78,7 @@ having
 --All valid block groups
 select
      bg.bg_geo_id "Block Group ID"
-     ,avg(bgs.score) "Average Block Group Score"
+     ,(select avg(bgs.score) from "BG_Score" as bgs where bgs.bg_geo_id=bg.bg_geo_id) "Average Block Group Score"
      ,max(case when dv.sid='pop' then bgd.value Else 0 END) "Population"
      ,max(case when dv.sid='pop_MF_3MS' then bgd.value Else 0 END) "Population: 3 Miles"
      ,max(case when dv.sid='hi_tot_3MS' then bgd.value Else 0 END) "Households: 3 Miles"
@@ -116,7 +116,6 @@ select
 from "Block_Group" as bg
 left join "BG_Data" as bgd on bg.bg_geo_id = bgd.bg_geo_id
 inner join "Demo_Var" as dv on dv.full_variable_id=bgd.variable_id
-left join "BG_Score" as bgs on bg.bg_geo_id = bgs.bg_geo_id
 group by bg.bg_geo_id
 having
 max(case when dv.sid='pop' then bgd.value Else 0 END) > 0

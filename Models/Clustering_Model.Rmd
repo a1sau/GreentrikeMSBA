@@ -10,7 +10,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r pull_data}
-df<-read.csv("C:/Users/Lugal/OneDrive/Documents/MSBA/Project/GreentrikeMSBA/Scoring Files/BG Score Extract 20210309.csv")
+df<-read.csv("C:/Users/Lugal/OneDrive/Documents/MSBA/Project/GreentrikeMSBA/Scoring Files/BG Score Extract 20210312.csv")
 
 colnames(df)[c(1,2)]<-c("BG_Geo_Id","Score")
 colnames(df)
@@ -20,13 +20,22 @@ df.score<-df.score[,c(2:23)]
 ```
 
 ```{r}
-
+df.full.norm<-as.data.frame(sapply(df[,c(3:23)], scale))
+d.full.norm<-dist(df.full.norm, method = "euclidean")
+hc.full<-hclust(d.full.norm,method="ward.D")
+plot(hc.full,hang=-1)
+memb.ful <- cutree(hc.full, k = 4)
+table(memb.ful)
+df.full<-df[,c(2:22)]
+df.full$Cluster<-memb.ful
+table(df.full$Cluster)
+aggregate(. ~ Cluster,data=df.full, FUN = mean, na.action = na.omit)
 ```
 
 
 ```{r}
 
-df.norm <- as.data.frame(sapply(df.score[c(2:22)], scale))
+df.norm <- as.data.frame(sapply(df.score[,c(2:22)], scale))
 d.norm <- dist(df.norm, method = "euclidean")
 ```
 
@@ -77,7 +86,7 @@ heatmap(as.matrix(df.norm[order(memb3),]), Colv = NA, hclustfun = function(d.nor
 
 ```{r}
 df2<-df.score
-df2$Cluster<-memb3
+df2$Cluster<-memb2
 ```
 
 

@@ -77,6 +77,8 @@ valid.df <- bg.score.3ms[valid_index,]
 # Just run preprocess on training data to get training mean and SD for normalization
 
 norm.values <- preProcess(train.df[,3:26], method = c("center","scale"))
+
+
 # Create normalized df first so you can omit the correct columns
 train.norm.df <- train.df
 valid.norm.df <- valid.df
@@ -90,7 +92,7 @@ bg.3ms.rmse.df <- data.frame(k = seq(1, k.num, 1), RMSE_value = rep(0, k.num))
 # compute knn for different k on validation.
 
 for(i in 1:k.num) {
-  knn.pred<- class::knn(train = train.norm.df[,3:26], test = valid.norm.df[,3:26], cl = train.norm.df[,2],k=i)
+  knn.pred<- class::knn(train = train.norm.df[,3:26], test = train.norm.df[,3:26], cl = train.norm.df[,2],k=i)
   
   bg.3ms.rmse.df[i, 2] <- RMSE(as.numeric(as.character(knn.pred)), valid.norm.df[,2])
 }
@@ -99,8 +101,11 @@ min(bg.3ms.rmse.df)
 bg.3ms.rmse.df
 
 ### Looks like k = is the highest consistency 
-knn.model <- class::knn(train = train.norm.df[,3:26], test = valid.norm.df[,3:26], cl = train.norm.df[,2],k =8)
-confusionMatrix(as.factor(knn.model), as.factor(valid.norm.df$score))
+knn.model.train <- class::knn(train = train.norm.df[,3:26], test = train.norm.df[,3:26], cl = train.norm.df[,2],k =8)
+confusionMatrix(as.factor(knn.model.train), as.factor(train.norm.df$score))
+
+knn.model.valid <- class::knn(train = train.norm.df[,3:26], test = valid.norm.df[,3:26], cl = train.norm.df[,2],k =8)
+confusionMatrix(as.factor(knn.model.valid), as.factor(valid.norm.df$score))
 
 RMSE(as.numeric(knn.model), valid.norm.df[,2])
 
@@ -110,9 +115,9 @@ RMSE(as.numeric(knn.model), valid.norm.df[,2])
 # Predict new records for 
 
 #Set test name
-model_id ="3MS_KNN_v.3"
+model_id ="3MS_KNN_v.4"
 
-##Normalize entire scored dataset
+##Normalize entire scored data set
 bg.score.3ms.norm <- bg.score.3ms
 bg.score.3ms.norm[,3:26] <- predict(norm.values, bg.score.3ms[,3:26])
 
@@ -124,10 +129,14 @@ head(bg.new.records.3ms)
 bg.new.records.3ms.norm <- bg.new.records.3ms
 bg.new.records.3ms.norm[,-1] <- predict(norm.values, bg.new.records.3ms[,-1])
 
+
 knn.model <- class::knn(train = train.norm.df[,3:26], test = valid.norm.df[,3:26], cl = train.norm.df[,2],k =4)
 knn.pred.new <- class::knn(train = bg.score.3ms.norm[,3:26], test = bg.new.records.3ms.norm[,2:25], cl = bg.score.3ms.norm[,2] ,k=8)
 summary(knn.pred.new)
 
+
+knn.model.total <- class::knn(train = bg.score.3ms.norm[,3:26], test = bg.new.records.3ms.norm[,2:25], cl = bg.score.3ms.norm[,2], k = 8)
+confusionMatrix(as.factor(knn.model.total))
 ```
 
 ```{r}
