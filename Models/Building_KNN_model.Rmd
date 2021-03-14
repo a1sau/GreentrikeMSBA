@@ -169,7 +169,7 @@ RMSE(as.numeric(knn.pred.new[56:123]), as.numeric(build.norm.scores$Score))
 
 ```{r}
 outscore <- as.data.frame(knn.pred.new)
-output.csv <- cbind(new.buildings.norm.t$CS_ID, Model_id, outscore, date())
+output.csv <- cbind(new.buildings.norm.t$CS_ID, Model_id, outscore, "2021-03-12")
 setnames(output.csv, (c( "cs_id", "model_id", "score", "date_calculated")))
 
 write.csv(output.csv,"C:/Users/Benjamin/Documents/UWTacoma/MSBA/Aplied Project with Greentrike/KNN MODELS\\Building_KNN_v.4_output.csv",row.names = FALSE)

@@ -107,7 +107,7 @@ confusionMatrix(as.factor(knn.model.train), as.factor(train.norm.df$score))
 knn.model.valid <- class::knn(train = train.norm.df[,3:26], test = valid.norm.df[,3:26], cl = train.norm.df[,2],k =8)
 confusionMatrix(as.factor(knn.model.valid), as.factor(valid.norm.df$score))
 
-RMSE(as.numeric(knn.model), valid.norm.df[,2])
+RMSE(as.numeric(knn.model.valid), valid.norm.df[,2])
 
 ```
 
