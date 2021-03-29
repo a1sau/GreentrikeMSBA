@@ -9,7 +9,6 @@ output: word_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-
 ```{r}
 library(DBI)
 library(odbc)
@@ -64,7 +63,6 @@ bg.score.3ms$score <- (as.integer(bg.score.3ms$score))
 #bg.score.3ms <- cbind(bg.score.3ms, city_short)
 
 ```
-
 
 ```{r}
 
