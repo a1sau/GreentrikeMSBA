@@ -34,83 +34,142 @@ def grab_placards():  ## NOTE -- this only searches properties that are listed f
         loopnet_links.append(loop_list) #just puts in the url into the list
     flat_list = [item for sublist in loopnet_links for item in sublist]
     print(len(flat_list))
-    print(flat_list)
     return flat_list
-flat_list = ['https://www.loopnet.com/Listing/2128-Pacific-Ave-Tacoma-WA/21271211/','https://www.loopnet.com/Listing/1551-Broadway-Tacoma-WA/6879898/']
-def building_dict():
+url_list = ['https://www.loopnet.com/Listing/13704-24th-St-E-Sumner-WA/21966193/','https://www.loopnet.com/Listing/1551-Broadway-Tacoma-WA/6879898/','https://www.loopnet.com/Listing/2128-Pacific-Ave-Tacoma-WA/21271211/','https://www.loopnet.com/Listing/3920-W-Tapps-Dr-E-Lake-Tapps-WA/22575498/','https://www.loopnet.com/Listing/19651-Wa-410-E-Bonney-Lake-WA/22499132/']
+def building_dict(url_list):
     buildings = []
-    for link in flat_list:
+    for link in url_list:
         site_facts = {}
         url = "{}".format(link)  # Puts the list link in the loop
         r = requests.get(url, headers=headers)
         page_soup = bs(r.content, features="html.parser")
-        #Gets the Address_Line through bg_geo_id #
-        loc = page_soup.find("h1", class_="breadcrumbs__crumb breadcrumbs__crumb-title")  # Finds the address on page.
-        try:  # If location doesn't have address, go to next item)
-            loc = loc.get_text()
-        except Exception as err:
-            continue
-        check = loc[-5:].isdigit()  # Checks to see if the postal code is in the address
-        if check:
-            a1 = loc.split(", ")
-            # Get AddressLine
-            site_facts['Address_Line'] = a1[0]
-            # Get City
-            site_facts['City'] = a1[1]
-            # Get State
-            site_facts['State'] = a1[2][0:2]
-            # Get Zip
-            site_facts['Postal_Code'] = a1[2][-5:]
-            geocode = cg.address(street=site_facts['Address_Line'], city=site_facts['City'], state=site_facts['State'],
-                                 zipcode=site_facts['Postal_Code'])
-            try:
-                GEOID = geocode[0]['geographies']['Census Tracts'][0]['GEOID']
-                site_facts['bg_geo_id'] = GEOID
-                print(count, site_facts['Address_Line'], site_facts['City'], GEOID)
-            except Exception as err:
-                pass
-        else:
-            site_facts['Address_Line'] = loc
-            site_facts["City"] = "N/A"
-            site_facts['State'] = "N/A"
-            site_facts['Postal_Code'] = "N/A"
-            site_facts['bg_geo_id'] = "N/A"
-        # Gets the CS_ID and URL #
-        id_array = url.split('/')  # Split url to get trailing digits for Primary Key
-        site_facts['CS_ID'] = "LN-" + id_array[-2]
-        site_facts['url'] = url  # Adds the url to the dictonary
-
-        # The titles in order are "Space", "Size", "Term", "Rate", "Space_Use", "Condition", "Avalable"
+        # The titles in order are "Space", "Size", "Term", "Rate", "Space_Use", "Condition", "Available"
         units = page_soup.find_all("ul", class_="available-spaces__accordion-data no-margin js-as-column-width")
-        units_txt = []
+        #units_txt = []
+        counter = 1 # Used to ensure unique CS_ID
+        print(url)
         for item in units:
-            unit_temp = item.get_text("|",strip=True)
-            units_txt.append(unit_temp)
+            unit_temp = item.get_text("|", strip=True)
+            units_txt = unit_temp.split("|")
+            #units_txt.append(unit_temp)
+            #Gets the Address_Line through bg_geo_id #
+            loc = page_soup.find("h1", class_="breadcrumbs__crumb breadcrumbs__crumb-title")  # Finds the address on page.
+            try:  # If location doesn't have address, go to next item)
+                loc = loc.get_text()
+            except Exception as err:
+                continue
+            check = loc[-5:].isdigit()  # Checks to see if the postal code is in the address
+            if check:
+                a1 = loc.split(", ")
+                # Get AddressLine
+                site_facts['Address_Line'] = a1[0]
+                # Get City
+                site_facts['City'] = a1[1]
+                # Get State
+                site_facts['State'] = a1[2][0:2]
+                # Get Zip
+                site_facts['Postal_Code'] = a1[2][-5:]
+                if units_txt[-4].endswith("/"):
+                    site_facts['Property_Type'] = units_txt[-4] + units_txt[-3]
+                else:
+                    site_facts['Property_Type'] = units_txt[-3]
+                geocode = cg.address(street=site_facts['Address_Line'], city=site_facts['City'], state=site_facts['State'],
+                                     zipcode=site_facts['Postal_Code'])
+                try:
+                    GEOID = geocode[0]['geographies']['2010 Census Blocks'][0]['GEOID'][0:12]
+                    site_facts['bg_geo_id'] = GEOID
+                    print(site_facts['Address_Line'], site_facts['City'], GEOID)
+                except Exception as err:
+                    pass
+            else:
+                site_facts['Address_Line'] = loc
+                site_facts["City"] = "N/A"
+                site_facts['State'] = "N/A"
+                site_facts['Postal_Code'] = "N/A"
+                if units_txt[-4].endswith("/"):
+                    site_facts['Property_Type'] = units_txt[-4] + units_txt[-3]
+                else:
+                    site_facts['Property_Type'] = units_txt[-3]
+                site_facts['bg_geo_id'] = "N/A"
+            # Gets the CS_ID and URL #
+            id_array = url.split('/')  # Split url to get trailing digits for Primary Key
+            site_facts['CS_ID'] = "LN-"+ str(counter) + id_array[-2]
+            site_facts['url'] = url  # Adds the url to the dictonary
+            # Price
+            #site_facts['Price_month']
+            try:
+                monthp_index = units_txt.index("/MO") - 1  # Finds the element that matches "/MO" then goes one back to the numeric price
+                month_price = units_txt[monthp_index].replace(',', '')
+                if '.' in month_price:
+                    m_p = month_price.split('.')
+                    site_facts['Price_month'] = int(m_p[0].strip('$'))
+                else:
+                    site_facts['Price_month'] = int(month_price.strip('$'))
+            except ValueError as err:
+                site_facts['Price_month'] = None
+            # Price Per Year
+            try:
+                yearp_index = units_txt.index("/YR") - 1 #Finds the element that matches "/YR" then goes one back to the numeric price
+                year_price = units_txt[yearp_index].replace(',','')
+                site_facts['Price_year'] = int(year_price.strip('$'))
+            except ValueError as err:
+                site_facts['Price_year'] = None
+            # Square Feet (size)
+            if units_txt[1].endswith("-"):
+                ft_int = units_txt[1].replace(',','')
+                site_facts['SquareFeet'] = int(ft_int.strip("-"))
+                max_ft = units_txt[2].replace(',','')
+                site_facts['Expansion_SqrFt'] = int(max_ft.strip(' SF'))
+            else:
+                ft_int = units_txt[1].replace(',','')
+                site_facts['SquareFeet'] = int(ft_int.strip(' SF'))
+                site_facts['Expansion_SqrFt'] = None
+            # Space
+            site_facts['Space'] = units_txt[0]
+            # Condition
+            site_facts['Condition'] = units_txt[-2]
+            # Avalable
+            site_facts['Available'] = units_txt[-1]
+            # Term
+            # Look to Expansion sqrft
+            if site_facts['Expansion_SqrFt'] == None:
+                site_facts['Term'] = units_txt[2]
+            else:
+                site_facts['Term'] = units_txt[3]
+            # Upload_Date
+            site_facts['Upload_Date'] = datetime.now().strftime("%Y-%m-%d")
+            # Currently_Listed
+            site_facts["Currently_Listed"] = False
+            # Sale_Lease
+            site_facts['Sale_Lease'] = "Lease"
+            #Append to buildnngs
+            buildings.append(site_facts)
+            #Increase Counter
+            counter += 1
+        sleep(randint(2,6))
+    return buildings
 
-        # Price
+def buildings_export(property_info):
+    export_time = datetime.now().strftime("%Y_%m_%d-%I_%M_%p")
+    with open('loopnet_listings_lease_{}.csv'.format(export_time), 'w', newline='\n') as f:
+        w = csv.DictWriter(f, property_info[0].keys())
+        w.writeheader()
+        for i in property_info:
+            w.writerow(i)
+    f.close()
 
-        # Square Feet (size)
-
-        # Space
-
-        # Condition
-
-        # Avalable
-
-        # Term
-
-        # Upload_Date
-
-        # Currently_Listed
-
-        # Sale_Lease
+buildings_export(building_dict(url_list))
 
 
-        buildings.append(site_facts)
+# def main():
+#     print('Grab placards')
+#     url_list = grab_placards()
+#     print("number of listings: {}".format(len(url_list)))
+#     print('Checking Listings')
+#     property_info = building_dict(url_list)
+#     print('Export list to file')
+#     buildings_export(property_info)
 
-        sleep(randint(2,5))
-        print(buildings)
 
-
-#grab_placards()
-building_dict()
+# if __name__ == '__main__':
+#     main()
