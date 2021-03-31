@@ -33,7 +33,6 @@ def grab_placards():  ## NOTE -- this only searches properties that are listed f
         loop_list=[link['href'] for link in links] # isolates the url from the html
         loopnet_links.append(loop_list) #just puts in the url into the list
     url_list = [item for sublist in loopnet_links for item in sublist]
-    print(len(url_list))
     return url_list
 
 def building_dict(url_list):
@@ -163,7 +162,6 @@ def buildings_export(property_info):
 def main():
     print('Grab placards')
     url_list = grab_placards()
-    print("number of listings: {}".format(len(url_list)))
     print('Checking Listings')
     property_info = building_dict(url_list)
     print('Export list to file')
