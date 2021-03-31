@@ -32,14 +32,13 @@ def grab_placards():  ## NOTE -- this only searches properties that are listed f
         links = soup.find_all('a', class_="subtitle-beta")  # Grabs the placard links that are NOT the featured placard TODO get the featured placard link
         loop_list=[link['href'] for link in links] # isolates the url from the html
         loopnet_links.append(loop_list) #just puts in the url into the list
-    flat_list = [item for sublist in loopnet_links for item in sublist]
-    print(len(flat_list))
-    return flat_list
-url_list = ['https://www.loopnet.com/Listing/13704-24th-St-E-Sumner-WA/21966193/','https://www.loopnet.com/Listing/1551-Broadway-Tacoma-WA/6879898/','https://www.loopnet.com/Listing/2128-Pacific-Ave-Tacoma-WA/21271211/','https://www.loopnet.com/Listing/3920-W-Tapps-Dr-E-Lake-Tapps-WA/22575498/','https://www.loopnet.com/Listing/19651-Wa-410-E-Bonney-Lake-WA/22499132/']
+    url_list = [item for sublist in loopnet_links for item in sublist]
+    print(len(url_list))
+    return url_list
+
 def building_dict(url_list):
     buildings = []
     for link in url_list:
-        site_facts = {}
         url = "{}".format(link)  # Puts the list link in the loop
         r = requests.get(url, headers=headers)
         page_soup = bs(r.content, features="html.parser")
@@ -49,6 +48,7 @@ def building_dict(url_list):
         counter = 1 # Used to ensure unique CS_ID
         print(url)
         for item in units:
+            site_facts = {}
             unit_temp = item.get_text("|", strip=True)
             units_txt = unit_temp.split("|")
             #units_txt.append(unit_temp)
@@ -73,8 +73,7 @@ def building_dict(url_list):
                     site_facts['Property_Type'] = units_txt[-4] + units_txt[-3]
                 else:
                     site_facts['Property_Type'] = units_txt[-3]
-                geocode = cg.address(street=site_facts['Address_Line'], city=site_facts['City'], state=site_facts['State'],
-                                     zipcode=site_facts['Postal_Code'])
+                geocode = cg.address(street=site_facts['Address_Line'], city=site_facts['City'], state=site_facts['State'], zipcode=site_facts['Postal_Code'])
                 try:
                     GEOID = geocode[0]['geographies']['2010 Census Blocks'][0]['GEOID'][0:12]
                     site_facts['bg_geo_id'] = GEOID
@@ -86,6 +85,7 @@ def building_dict(url_list):
                 site_facts["City"] = "N/A"
                 site_facts['State'] = "N/A"
                 site_facts['Postal_Code'] = "N/A"
+                site_facts['bg_geo_id'] = None
                 if units_txt[-4].endswith("/"):
                     site_facts['Property_Type'] = units_txt[-4] + units_txt[-3]
                 else:
@@ -93,7 +93,7 @@ def building_dict(url_list):
                 site_facts['bg_geo_id'] = "N/A"
             # Gets the CS_ID and URL #
             id_array = url.split('/')  # Split url to get trailing digits for Primary Key
-            site_facts['CS_ID'] = "LN-"+ str(counter) + id_array[-2]
+            site_facts['CS_ID'] = "LN-" + id_array[-2] + "-" + str(counter)
             site_facts['url'] = url  # Adds the url to the dictonary
             # Price
             #site_facts['Price_month']
@@ -142,7 +142,7 @@ def building_dict(url_list):
             site_facts["Currently_Listed"] = False
             # Sale_Lease
             site_facts['Sale_Lease'] = "Lease"
-            #Append to buildnngs
+            #Append to buildings
             buildings.append(site_facts)
             #Increase Counter
             counter += 1
@@ -158,18 +158,17 @@ def buildings_export(property_info):
             w.writerow(i)
     f.close()
 
-buildings_export(building_dict(url_list))
 
 
-# def main():
-#     print('Grab placards')
-#     url_list = grab_placards()
-#     print("number of listings: {}".format(len(url_list)))
-#     print('Checking Listings')
-#     property_info = building_dict(url_list)
-#     print('Export list to file')
-#     buildings_export(property_info)
+def main():
+    print('Grab placards')
+    url_list = grab_placards()
+    print("number of listings: {}".format(len(url_list)))
+    print('Checking Listings')
+    property_info = building_dict(url_list)
+    print('Export list to file')
+    buildings_export(property_info)
 
 
-# if __name__ == '__main__':
-#     main()
+if __name__ == '__main__':
+    main()
