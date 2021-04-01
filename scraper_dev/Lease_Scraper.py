@@ -74,7 +74,7 @@ def building_dict(url_list):
                     site_facts['Property_Type'] = units_txt[-3]
                 geocode = cg.address(street=site_facts['Address_Line'], city=site_facts['City'], state=site_facts['State'], zipcode=site_facts['Postal_Code'])
                 try:
-                    GEOID = geocode[0]['geographies']['2010 Census Blocks'][0]['GEOID'][0:12]
+                    GEOID = geocode[0]['geographies']['2020 Census Blocks'][0]['GEOID'][0:12]
                     site_facts['bg_geo_id'] = GEOID
                     print(site_facts['Address_Line'], site_facts['City'], GEOID)
                 except Exception as err:
