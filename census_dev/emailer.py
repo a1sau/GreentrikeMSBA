@@ -56,12 +56,9 @@ def create_email(email,password):
     for i in range(messages, messages-3, -1):
         # fetch the email message by ID
         res, msg = imap.fetch(str(i), "(RFC822)")
-        print(res)
-        print(msg)
         for response in msg:
             if isinstance(response, tuple):
                 # parse a bytes email into a message object
-                print(response[1])
                 msg = em.message_from_bytes(response[1])
                 # decode the email subject
                 subject, encoding = decode_header(msg["Subject"])[0]
@@ -83,6 +80,7 @@ def create_email(email,password):
                     try:
                         # get the email body
                         body = part.get_payload(decode=True).decode()
+                        print("BODY:",body)
                     except:
                         if content_type == "text/plain" and "attachment" not in content_disposition:
                             # print text/plain emails and skip attachments
