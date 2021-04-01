@@ -1,0 +1,12 @@
+model_id,model_name,notes,target,training_rmse,validation_rmse,training_accuracy,validation_accuracy
+1,Linear regression A,Exhaustive search - 12 predictors,Census,0.5010432,1.23134,0.7179,0.2941
+2,Decision Tree Census,class-based,Census,,,0.7179,0.3529
+3,Decision Tree Building,class-based,Building,,,0.6364,0.2632
+4,KNN Building Cluster,,Building,1,1.316561,0.5294118,0.2666667
+5,KNN Census Cluster v1,3MS,Census,0.9591663,1.058301,0.4324,0.36
+6,Naive Census Model,Always pick 3,Census,,0.9566497,,0.3393
+7,Naive Building Model,Always pick 2,Building,,0.9656809,,0.3175
+8,Neural Network Census,,Census,0.6063866,0.6439906,0.3684,0.4286
+9,Neural Network Building,,Building,1.598709,1.098608,0.2308,0.4444
+10,KNN Building Cluster V3,K=8 with 3/9 data,Building,1.010582,1.046536,0.5531915,0.4761905
+11,Linear Regression B,Average Age only,Census,0.771763,1.099607,0.5128,0.2353

@@ -6,4 +6,10 @@ census_dev/cenpy/
 /scraper_dev/etl_test.py
 census_dev/.idea/.name
 census_dev/.idea/workspace.xml
-
+.idea/vcs.xml
+.idea/workspace.xml
+*.pyc
+.idea/GreentrikeMSBA.iml
+.idea/inspectionProfiles/profiles_settings.xml
+.idea/misc.xml
+.idea/modules.xml

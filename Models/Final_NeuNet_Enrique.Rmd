@@ -1,0 +1,232 @@
+---
+title: "New_Data_NeuNet"
+author: "Enrique Otanez"
+date: "3/7/2021"
+output: word_document
+---
+
+```{r}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = normalizePath("D:/Templates/UW Stuff/Classes/MSBA/Classes/PM Stuff for me/NeuralNet"))
+```
+
+```{r}
+setwd("D:/Templates/UW Stuff/Classes/MSBA/Classes/PM Stuff for me/NeuralNet")
+
+#### Table 11.2
+library(neuralnet)
+library(tidyverse)
+new_building <- read.csv("Building.csv")
+
+#Here is the best model for buildings, below are the other models tested. 
+
+new_building$Tacoma <- new_building$City == "Tacoma"
+new_building$Puyallup <- new_building$City == "Puyallup"
+new_building$Land <- new_building$Property_Type == "Land"
+new_building$Multifamily <- new_building$Property_Type == "Multifamily"
+new_building$Industrial <- new_building$Property_Type == "Industrial"
+new_building$Office <- new_building$Property_Type == "Office"
+new_building$Retail <- new_building$Property_Type == "Retail"
+new_building$Investment <- new_building$Sale_Type == "Investment"
+new_building$OwnerUser <- new_building$Sale_Type == "OwnerUser"
+new_building$InvestmentNNN <- new_building$Sale_Type == "InvestmentNNN"
+new_building$Investment_or_Owner_User <- new_building$Sale_Type == "Investment or Owner User"
+
+#df$Acceptance <- as.factor(df$Acceptance)
+#df$Like <- as.factor(df$Like)
+#$Dislike <- as.factor(df$Dislike)
+
+new_building
+
+
+#in the dataset, I am imputing for the missing prices and I will be removing the rows that does not have squarefeet and price per square feet. After realizing 
+Price <- (new_building$Price - min(new_building$Price))/(max(new_building$Price) - min(new_building$Price))
+SquareFeet <- (new_building$SquareFeet - min(new_building$SquareFeet))/(max(new_building$SquareFeet) - min(new_building$SquareFeet))
+Price.SQFT <- (new_building$Price.SQFT - min(new_building$Price.SQFT))/(max(new_building$Price.SQFT) - min(new_building$Price.SQFT))
+Tacoma <- new_building$Tacoma*1
+Puyallup <- new_building$Puyallup*1
+Land <- new_building$Land*1
+Multifamily <- new_building$Multifamily*1
+Industrial <- new_building$Industrial*1
+Office <- new_building$Office*1
+Retail <- new_building$Retail*1
+Investment <- new_building$Investment*1
+OwnerUser <- new_building$OwnerUser*1
+InvestmentNNN <- new_building$InvestmentNNN*1
+Investment_or_Owner_User <- new_building$Investment_or_Owner_User*1
+
+building_final <- data.frame(Price, SquareFeet, Price.SQFT, Tacoma, Puyallup, Land, Multifamily, Industrial, Office, Retail, Investment, OwnerUser, InvestmentNNN, Investment_or_Owner_User)
+
+building_final
+
+#check for duplicates
+duplicated(building_final$Price)
+
+#remove rows with duplicates
+building_final <- building_final[!duplicated(building_final[ , "Price"]),]
+
+view(building_final)
+
+#check for NA's
+str(building_final)
+sum(is.na(building_final$Price))
+sum(is.na(building_final$SquareFeet))
+sum(is.na(building_final$Price.SQFT))
+
+
+
+#remove columns
+#drop <- c("X", "X.1", "X.2", "X.3", "X.4", "X.5")
+#new_building = new_building[,!(names(new_building)%in% drop)]
+
+#new_building needs a blank column
+library(tibble)
+library(dplyr)
+
+#load model
+load(file="buildingneunetmodel")
+
+building_predictions <- predict(bld_neun, building_final, reps = 10, all.units = FALSE)
+
+building_predictions
+
+
+
+
+
+
+
+#denormalize predicted score
+og_building <- read.csv("NeuralNetSet.csv")
+og_building$Score
+
+unnorm_building_predictions <- (building_predictions) * (max(og_building$Score) - min(og_building$Score)) + min(og_building$Score)
+unnorm_building_predictions
+
+final_building$Score <- unnorm_building_predictions
+
+final_building
+
+setwd("D:/Templates/UW Stuff/Classes/MSBA/Classes/PM Stuff for me/NeuralNet")
+write.csv(final_building, "D:/Templates/UW Stuff/Classes/MSBA/Classes/PM Stuff for me/NeuralNet\\Final_Enrique_Building_Score.csv", row.names = FALSE)
+```
+
+```{r}
+#We do the exact same process as building for census
+setwd("D:/Templates/UW Stuff/Classes/MSBA/Classes/PM Stuff for me/NeuralNet")
+
+new_census <- read.csv("New_Census.csv")
+
+new_census
+
+
+
+
+
+#here is the best model for census, other models are found below.
+
+
+#check for duplicates
+duplicated(new_census$Block.Group.ID)
+
+#remove rows with duplicates
+#new_census <- new_census[!duplicated(new_census[ , "Block.Group"]),]
+
+new_census
+
+
+str(new_census)
+
+#Change all variables into a single scale
+#This is because percentages cannot compare to whole numbers and vice versa, its best to just normalize everything
+new_census$Population <- (new_census$Population - min(new_census$Population))/(max(new_census$Population) - min(new_census$Population))
+
+new_census$Population..3.Miles <- (new_census$Population..3.Miles - min(new_census$Population..3.Miles))/(max(new_census$Population..3.Miles) - min(new_census$Population..3.Miles))
+
+new_census$Households..3.Miles <- (new_census$Households..3.Miles - min(new_census$Households..3.Miles))/(max(new_census$Households..3.Miles) - min(new_census$Households..3.Miles))
+
+new_census$Kids.under.5 <- (new_census$Kids.under.5 - min(new_census$Kids.under.5))/(max(new_census$Kids.under.5) - min(new_census$Kids.under.5))
+
+new_census$Kids.under.5..3.Miles <- (new_census$Kids.under.5..3.Miles - min(new_census$Kids.under.5..3.Miles))/(max(new_census$Kids.under.5..3.Miles) - min(new_census$Kids.under.5..3.Miles))
+
+new_census$Kids.5.to.9 <- (new_census$Kids.5.to.9 - min(new_census$Kids.5.to.9))/(max(new_census$Kids.5.to.9) - min(new_census$Kids.5.to.9))
+
+new_census$Kids.under.5..3.Miles <- (new_census$Kids.under.5..3.Miles - min(new_census$Kids.under.5..3.Miles))/(max(new_census$Kids.under.5..3.Miles) - min(new_census$Kids.under.5..3.Miles))
+
+new_census$Average.Age <- (new_census$Average.Age - min(new_census$Average.Age))/(max(new_census$Average.Age) - min(new_census$Average.Age))
+
+new_census$Household.income.under.40K..3.Mile <- (new_census$Household.income.under.40K..3.Mile - min(new_census$Household.income.under.40K..3.Mile))/(max(new_census$Household.income.under.40K..3.Mile) - min(new_census$Household.income.under.40K..3.Mile))
+
+new_census$Household.income.40K.to.50K..3.Mile <- (new_census$Household.income.40K.to.50K..3.Mile - min(new_census$Household.income.40K.to.50K..3.Mile))/(max(new_census$Household.income.40K.to.50K..3.Mile) - min(new_census$Household.income.40K.to.50K..3.Mile))
+
+new_census$Household.income.50K.to.60K..3.Mile <- (new_census$Household.income.50K.to.60K..3.Mile - min(new_census$Household.income.50K.to.60K..3.Mile))/(max(new_census$Household.income.50K.to.60K..3.Mile) - min(new_census$Household.income.50K.to.60K..3.Mile))
+
+new_census$Household.income.60K.to.75K..3.Mile <- (new_census$Household.income.60K.to.75K..3.Mile - min(new_census$Household.income.60K.to.75K..3.Mile))/(max(new_census$Household.income.60K.to.75K..3.Mile) - min(new_census$Household.income.60K.to.75K..3.Mile))
+
+new_census$Household.income.75K.to.100K..3.Mile <- (new_census$Household.income.75K.to.100K..3.Mile - min(new_census$Household.income.75K.to.100K..3.Mile))/(max(new_census$Household.income.75K.to.100K..3.Mile) - min(new_census$Household.income.75K.to.100K..3.Mile))
+
+new_census$Household.income.100K.to.125K..3.Mile <- (new_census$Household.income.100K.to.125K..3.Mile - min(new_census$Household.income.100K.to.125K..3.Mile))/(max(new_census$Household.income.100K.to.125K..3.Mile) - min(new_census$Household.income.100K.to.125K..3.Mile))
+
+new_census$Household.income.125K.to.150K..3.Mile <- (new_census$Household.income.125K.to.150K..3.Mile - min(new_census$Household.income.125K.to.150K..3.Mile))/(max(new_census$Household.income.125K.to.150K..3.Mile) - min(new_census$Household.income.125K.to.150K..3.Mile))
+
+new_census$Household.income.150K.to.200K..3.Mile <- (new_census$Household.income.150K.to.200K..3.Mile - min(new_census$Household.income.150K.to.200K..3.Mile))/(max(new_census$Household.income.150K.to.200K..3.Mile) - min(new_census$Household.income.150K.to.200K..3.Mile))
+
+new_census$Household.income.200K...3.Mile <- (new_census$Household.income.200K...3.Mile - min(new_census$Household.income.200K...3.Mile))/(max(new_census$Household.income.200K...3.Mile) - min(new_census$Household.income.200K...3.Mile))
+
+#census$Area.Score <- (census$Area.Score - min(census$Area.Score))/(max(census$Area.Score) - min(census$Area.Score))
+view(new_census)
+
+
+#set the scale to -1:1
+#set scale from 0 to 1 to -1 to 1
+new_census$Population <- (2 * ((new_census$Population - min(new_census$Population))/max(new_census$Population) - min(new_census$Population))) - 1
+new_census$Population..3.Miles <- (2 * ((new_census$Population..3.Miles - min(new_census$Population..3.Miles))/max(new_census$Population..3.Miles) - min(new_census$Population..3.Miles))) - 1
+new_census$Households..3.Miles <- (2 * ((new_census$Households..3.Miles - min(new_census$Households..3.Miles))/max(new_census$Households..3.Miles) - min(new_census$Households..3.Miles))) - 1
+new_census$Kids.under.5 <- (2 * ((new_census$Kids.under.5 - min(new_census$Kids.under.5))/max(new_census$Kids.under.5) - min(new_census$Kids.under.5))) - 1
+new_census$Kids.under.5..3.Miles <- (2 * ((new_census$Kids.under.5..3.Miles - min(new_census$Kids.under.5..3.Miles))/max(new_census$Kids.under.5..3.Miles) - min(new_census$Kids.under.5..3.Miles))) - 1
+new_census$Kids.5.to.9 <- (2 * ((new_census$Kids.5.to.9 - min(new_census$Kids.5.to.9))/max(new_census$Kids.5.to.9) - min(new_census$Kids.5.to.9))) - 1
+new_census$Kids.5.to.9..3.Miles <- (2 * ((new_census$Kids.5.to.9..3.Miles - min(new_census$Kids.5.to.9..3.Miles))/max(new_census$Kids.5.to.9..3.Miles) - min(new_census$Kids.5.to.9..3.Miles))) - 1
+new_census$Average.Age <- (2 * ((new_census$Average.Age - min(new_census$Average.Age))/max(new_census$Average.Age) - min(new_census$Average.Age))) - 1
+new_census$Household.income.under.40K..3.Mile <- (2 * ((new_census$Household.income.under.40K..3.Mile - min(new_census$Household.income.under.40K..3.Mile))/max(new_census$Household.income.under.40K..3.Mile) - min(new_census$Household.income.under.40K..3.Mile))) - 1
+new_census$Household.income.40K.to.50K..3.Mile <- (2 * ((new_census$Household.income.40K.to.50K..3.Mile - min(new_census$Household.income.40K.to.50K..3.Mile))/max(new_census$Household.income.40K.to.50K..3.Mile) - min(new_census$Household.income.40K.to.50K..3.Mile))) - 1
+new_census$Household.income.50K.to.60K..3.Mile <- (2 * ((new_census$Household.income.50K.to.60K..3.Mile - min(new_census$Household.income.50K.to.60K..3.Mile))/max(new_census$Household.income.50K.to.60K..3.Mile) - min(new_census$Household.income.50K.to.60K..3.Mile))) - 1
+new_census$Household.income.60K.to.75K..3.Mile <- (2 * ((new_census$Household.income.60K.to.75K..3.Mile - min(new_census$Household.income.60K.to.75K..3.Mile))/max(new_census$Household.income.60K.to.75K..3.Mile) - min(new_census$Household.income.60K.to.75K..3.Mile))) - 1
+new_census$Household.income.75K.to.100K..3.Mile <- (2 * ((new_census$Household.income.75K.to.100K..3.Mile - min(new_census$Household.income.75K.to.100K..3.Mile))/max(new_census$Household.income.75K.to.100K..3.Mile) - min(new_census$Household.income.75K.to.100K..3.Mile))) - 1
+new_census$Household.income.100K.to.125K..3.Mile <- (2 * ((new_census$Household.income.100K.to.125K..3.Mile - min(new_census$Household.income.100K.to.125K..3.Mile))/max(new_census$Household.income.100K.to.125K..3.Mile) - min(new_census$Household.income.100K.to.125K..3.Mile))) - 1
+new_census$Household.income.125K.to.150K..3.Mile <- (2 * ((new_census$Household.income.125K.to.150K..3.Mile - min(new_census$Household.income.125K.to.150K..3.Mile))/max(new_census$Household.income.125K.to.150K..3.Mile) - min(new_census$Household.income.125K.to.150K..3.Mile))) - 1
+new_census$Household.income.150K.to.200K..3.Mile <- (2 * ((new_census$Household.income.150K.to.200K..3.Mile - min(new_census$Household.income.150K.to.200K..3.Mile))/max(new_census$Household.income.150K.to.200K..3.Mile) - min(new_census$Household.income.125K.to.150K..3.Mile))) - 1
+new_census$Household.income.200K...3.Mile <- (2 * ((new_census$Household.income.200K...3.Mile - min(new_census$Household.income.200K...3.Mile))/max(new_census$Household.income.200K...3.Mile) - min(new_census$Household.income.200K...3.Mile))) - 1
+
+view(new_census)
+
+new_census
+
+load(file="censusneunetmodel")
+
+new_census.predict <- predict(census_neun, new_census, rep = 10, all.units = FALSE)
+new_census.predict
+
+#denormalize
+final_census_predict <- (new_census.predict * 2) + 3
+final_census_predict
+
+final_new_census <- read.csv("New_Census.csv")
+
+final_new_census$Predicted.Score <- final_census_predict
+final_new_census
+
+
+#remove columns
+#drop <- c("X", "X.1", "X.2", "X.3", "X.4", "X.5")
+#new_building = new_building[,!(names(new_building)%in% drop)]
+
+#new_building needs a blank column
+library(tibble)
+library(dplyr)
+
+
+
+setwd("D:/Templates/UW Stuff/Classes/MSBA/Classes/PM Stuff for me/NeuralNet")
+write.csv(final_new_census, "D:/Templates/UW Stuff/Classes/MSBA/Classes/PM Stuff for me/NeuralNet\\Final_Enrique_Census_Score.csv", row.names = FALSE)
+```
+

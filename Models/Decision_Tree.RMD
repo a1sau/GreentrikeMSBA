@@ -1,0 +1,162 @@
+---
+title: "Decision Tree Greentrike"
+author: "Brian Krumholz"
+date: "3/5/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir ="C:/Users/Lugal/OneDrive/Documents/MSBA/Project/GreentrikeMSBA/Models")
+
+```
+
+
+```{r}
+library(rpart)
+library(readxl)
+library(tidyverse)
+library(rattle)
+library(party)
+library(caret)
+library(randomForest)
+```
+
+```{r pull_data}
+df<-read.csv("C:/Users/Lugal/OneDrive/Documents/MSBA/Project/GreentrikeMSBA/Scoring Files/BG Score Extract 20210309.csv")
+
+colnames(df)[c(1,2)]<-c("BG_Geo_Id","Score")
+colnames(df)
+df.score<-df[!is.na(df$`Score`),]
+table(df.score$Score)
+df.score<-df.score[,c(2,7,9,20:23)]
+
+df.score$Score[df.score$Score==2.5]<-2
+df.score$Score[df.score$Score==3.5]<-4
+df.score$Score[df.score$Score==1]<-2  #bin 1 with 2.
+df.score$Score<-as.factor(df.score$Score)
+# df.score$Score<-as.factor(as.numeric(as.character(df.score$Score)))
+table(df.score$Score)
+```
+
+```{r split_training_bg}
+set.seed(7)  
+train.index <- sample(c(1:dim(df.score)[1]), dim(df.score)[1]*0.7)
+train.df <- df.score[train.index, ]
+valid.df <- df.score[-train.index, ]
+table(df.score$Score)
+table(train.df$Score)
+table(valid.df$Score)
+```
+
+```{r}
+default.rt <- rpart(Score ~ ., method="class", data = train.df, maxdepth=4,minbucket=2)
+# plot tree
+# prp(default.rt, type = 1, extra = 0, under = TRUE, split.font = 12, varlen = -10)
+fancyRpartPlot(default.rt,cex=.5,type=2,sub="",under=TRUE)
+```
+
+
+```{r score_training}
+default.ct.pred<-predict(default.rt, newdata=train.df, type="class")
+# cbind(default.rp.pred,train.df$Score)
+cm<-confusionMatrix(as.factor(default.ct.pred),as.factor(train.df$Score))
+cm
+```
+
+```{r score_validation}
+default.ct.valid.pred<-predict(default.rt, newdata=valid.df, type="class")
+# cbind(default.rp.pred,train.df$Score)
+cm<-confusionMatrix(as.factor(default.ct.valid.pred),as.factor(valid.df$Score))
+cm
+```
+```{r score_all_census}
+all.predict<-predict(default.rt,newdata=df,type="class")
+census.df.out<-cbind(df$BG_Geo_Id,all.predict)
+write.csv(census.df.out,"C:/Users/Lugal/OneDrive/Documents/MSBA/Project/GreentrikeMSBA/Scoring Files/decision_tree_census_predicted_20210309.csv")
+table(all.predict)
+```
+
+```{r random_forest_census}
+myrf <- randomForest(Score ~ .,train.df)
+myrf.pred <- predict(myrf, train.df)
+cm<-confusionMatrix(as.factor(myrf.pred),as.factor(train.df$Score))
+cm
+```
+
+```{r random_forest_predict}
+myrf.pred <- predict(myrf, valid.df)
+cm2<-confusionMatrix(as.factor(myrf.pred),as.factor(valid.df$Score))
+cm2
+```
+
+```{r Build_load}
+df.bld<-read.csv("C:/Users/Lugal/OneDrive/Documents/MSBA/Project/GreentrikeMSBA/Scoring Files/Building Score Extract 20210309.csv")
+colnames(df.bld)[c(1,2,10)]<-c("CS_ID","Score","price_per_sq_ft")
+table(df.bld$Score)
+df.bld$Score[df.bld$Score==2.5]<-3
+table(df.bld$Score)
+colnames(df.bld)
+df.score.bld<-df.bld[,c(2,4,5,8,9,10)]
+df.score.bld$Score<-as.factor(df.score.bld$Score)
+table(df.score.bld$City)
+city_list<-c("Tacoma","Puyallup","Lakewood")
+df.score.bld$City<-ifelse((df.score.bld$City %in% city_list), df.score.bld$City, "Other")
+df.all.bld<-df.score.bld
+df.score.bld<-df.score.bld[!is.na(df.score.bld$Score),]
+```
+
+```{r include=FALSE,eval=FALSE}
+view(df.score.bld)
+```
+
+
+```{r split_training_bld}
+set.seed(8)
+train.index <- sample(c(1:dim(df.score.bld)[1]), dim(df.score.bld)[1]*0.7)
+train.df <- df.score.bld[train.index, ]
+valid.df <- df.score.bld[-train.index, ]
+table(df.score.bld$Score)
+table(train.df$Score)
+```
+
+```{r building_dt_setup}
+default.rt.bld <- rpart(Score ~ ., method="class", data = train.df, maxdepth=4,minbucket=2)
+# plot tree
+# prp(default.rt, type = 1, extra = 0, under = TRUE, split.font = 12, varlen = -10)
+fancyRpartPlot(default.rt.bld,cex=.5,type=2,sub="",under=TRUE)
+```
+
+```{r score_training_bld}
+default.ct.pred<-predict(default.rt.bld, newdata=train.df, type="class")
+# cbind(default.rp.pred,train.df$Score)
+cm<-confusionMatrix(as.factor(default.ct.pred),as.factor(train.df$Score))
+cm
+```
+
+```{r score_validation_bld}
+default.ct.valid.pred<-predict(default.rt.bld, newdata=valid.df, type="class")
+# cbind(default.rp.pred,train.df$Score)
+cm<-confusionMatrix(as.factor(default.ct.valid.pred),as.factor(valid.df$Score))
+cm
+```
+
+```{r score_all_bld}
+full_bld_score<-predict(default.rt.bld,newdata=df.all.bld,type="class")
+table(full_bld_score)
+bld_out_df<-cbind(df.bld$CS_ID,full_bld_score)  #restore CS_ID to list
+write.csv(bld_out_df,"C:/Users/Lugal/OneDrive/Documents/MSBA/Project/GreentrikeMSBA/Scoring Files/decision_tree_building_predicted_20210309.csv")
+```
+
+```{r random_forest_bld_train}
+
+#Random Forests
+myrf <- randomForest(Score ~ .,data=train.df,na.action = na.omit)
+myrf.pred <- predict(myrf, train.df)
+train.rf.cm<-confusionMatrix(as.factor(myrf.pred),as.factor(train.df$Score))
+train.rf.cm
+myrf.pred <- predict(myrf, valid.df)
+valid.rf.cm<-confusionMatrix(as.factor(myrf.pred),as.factor(valid.df$Score))
+valid.rf.cm
+```
+

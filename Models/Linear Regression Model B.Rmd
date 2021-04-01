@@ -1,0 +1,105 @@
+---
+title: "Linear Regression B"
+author: "Brian Krumholz"
+date: "3/9/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir ="C:/Users/Lugal/OneDrive/Documents/MSBA/Project/GreentrikeMSBA/Models")
+
+```
+
+
+```{r}
+library(readxl)
+library(tidyverse)
+library(rattle)
+library(caret)
+library(leaps)
+```
+
+```{r pull_data}
+df<-read.csv("C:/Users/Lugal/OneDrive/Documents/MSBA/Project/GreentrikeMSBA/Scoring Files/BG Score Extract 20210309.csv")
+
+colnames(df)[c(1,2)]<-c("BG_Geo_Id","Score")
+colnames(df)
+df.score<-df[!is.na(df$`Score`),]
+df.score$Score<-round(df.score$Score,0)
+df.score<-df.score[,c(2:23)]
+```
+
+```{r split_training_bg}
+set.seed(7)  
+train.index <- sample(c(1:dim(df.score)[1]), dim(df.score)[1]*0.7)
+train.df <- df.score[train.index, ]
+valid.df <- df.score[-train.index, ]
+table(df.score$Score)
+```
+
+
+```{r backward_selection}
+lm1<-lm(Score ~ .,data=train.df)
+af.lm.step <- step(lm1, direction = "backward")
+summary(lm1)
+# af.lm.step
+```
+
+```{r exhaustive_search}
+search <- regsubsets(Score ~ ., data = train.df, nbest = 1, nvmax = dim(train)[2],
+                     method = "exhaustive")
+sum <- summary(search)
+# sum$which   #show list of all models
+t(t(sum$adjr2)) #show adjusted R^2 for each model
+models <-  order(sum$adjr2, decreasing = T)[1:3]
+sum$which[models,]
+```
+
+```{r}
+lm1<-lm(Score ~ .,data=train.df[,c(1,2,3,4,5,6,9,10,11,12,13,14,17,18,20)])
+train.pred<-predict(lm1,newdata=train.df)
+valid.pred<-predict(lm1,newdata=valid.df)
+RMSE(train.pred,train.df$Score)
+RMSE(valid.pred,valid.df$Score)
+confusionMatrix(as.factor(round(train.pred,0)),as.factor(train.df$Score))
+confusionMatrix(as.factor(round(valid.pred,0)),as.factor(valid.df$Score))
+```
+
+```{r include=FALSE, eval=FALSE}
+output.df<-cbind(as.character(df$BG_Geo_Id),round(predict(lm1,df)),rep(1,dim(df)[1]),rep("2021-03-12",dim(df)[1]))
+colnames(output.df)<-c("bg_geo_id","score","model_id","date_obtained")
+write.csv(output.df,"linear_model1_out_20210312.csv",row.names = FALSE)
+```
+
+```{r}
+print(paste(seq(0,22),sum$which[6,]))
+```
+
+```{r}
+lm2<-lm(Score ~ .,data=train.df[,c(1,2,3,12,13,17,19,22)])
+train.pred<-predict(lm2,newdata=train.df)
+valid.pred<-predict(lm2,newdata=valid.df)
+RMSE(train.pred,train.df$Score)
+RMSE(valid.pred,valid.df$Score)
+confusionMatrix(as.factor(round(train.pred,0)),as.factor(train.df$Score))
+confusionMatrix(as.factor(round(valid.pred,0)),as.factor(valid.df$Score))
+summary(lm2)
+```
+
+```{r}
+lm2<-lm(Score ~ .,data=train.df[,c(1,13)])
+train.pred<-predict(lm2,newdata=train.df)
+valid.pred<-predict(lm2,newdata=valid.df)
+RMSE(train.pred,train.df$Score)
+RMSE(valid.pred,valid.df$Score)
+confusionMatrix(as.factor(round(train.pred,0)),as.factor(train.df$Score))
+confusionMatrix(as.factor(round(valid.pred,0)),as.factor(valid.df$Score))
+summary(lm2)
+```
+
+```{r include=FALSE, eval=FALSE}
+output.df<-cbind(as.character(df$BG_Geo_Id),round(predict(lm2,df)),rep(11,dim(df)[1]),rep("2021-03-12",dim(df)[1]))
+colnames(output.df)<-c("bg_geo_id","score","model_id","date_obtained")
+write.csv(output.df,"linear_model1_out_20210312B.csv",row.names = FALSE)
+```
