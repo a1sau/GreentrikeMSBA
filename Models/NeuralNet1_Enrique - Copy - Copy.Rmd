@@ -1,0 +1,745 @@
+---
+title: "NeuralNet1"
+author: "Enrique Otanez"
+date: "3/3/2021"
+output: word_document
+---
+
+```{r}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = normalizePath("D:/Templates/UW Stuff/Classes/MSBA/Classes/PM Stuff for me/NeuralNet"))
+```
+
+```{r}
+#time to configure this model to postgres
+library(DBI)
+
+con <- dbConnect(RPostgres::Postgres())
+
+db <- 'TEST'
+
+host_db <- 'greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com'
+
+db_port <- '5432'
+
+db_user <- 'eotanez'
+
+db_password <- 'eotanez456'
+
+con <- dbConnect(RPostgres::Postgres(), dbname = db, host = host_db, port = db_port, user = db_user, password = db_password)
+
+con <- dbConnect(RPostgres::Postgres(),dbname = 'TEST', 
+                 host = 'greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com', # i.e. 'ec2-54-83-201-96.compute-1.amazonaws.com'
+                 port = 5432, # or any other port specified by your DBA
+                 user = 'eotanez',
+                 password = 'eotanez456')
+
+install.packages("odbc")
+library(odbc)
+con <- DBI::dbConnect(odbc::odbc(),
+  driver = "PostgreSQL Unicode(x64)",
+  database = "TEST",
+  UID      = rstudioapi::askForPassword("eotanez"),
+  PWD      = rstudioapi::askForPassword("eotanez456"),
+  server = "greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com",
+  port = 5432)
+```
+
+```{r}
+setwd("D:/Templates/UW Stuff/Classes/MSBA/Classes/PM Stuff for me/NeuralNet")
+
+#### Table 11.2
+library(neuralnet)
+library(tidyverse)
+building <- read.csv("NeuralNetSet.csv")
+
+#Here is the best model for buildings, below are the other models tested. 
+
+building$Tacoma <- building$City == "Tacoma"
+building$Puyallup <- building$City == "Puyallup"
+building$Land <- building$Property_Type == "Land"
+building$Multifamily <- building$Property_Type == "Multifamily"
+building$Industrial <- building$Property_Type == "Industrial"
+building$Office <- building$Property_Type == "Office"
+building$Retail <- building$Property_Type == "Retail"
+building$Investment <- building$Sale_Type == "Investment"
+building$OwnerUser <- building$Sale_Type == "OwnerUser"
+building$InvestmentNNN <- building$Sale_Type == "InvestmentNNN"
+building$Investment_or_Owner_User <- building$Sale_Type == "Investment or Owner User"
+
+#df$Acceptance <- as.factor(df$Acceptance)
+#df$Like <- as.factor(df$Like)
+#$Dislike <- as.factor(df$Dislike)
+
+building
+```
+
+
+```{r}
+Price <- (building$Price - min(building$Price))/(max(building$Price) - min(building$Price))
+SquareFeet <- (building$SquareFee - min(building$SquareFee))/(max(building$SquareFee) - min(building$SquareFee))
+Price.SQFT <- (building$Price.SQFT - min(building$Price.SQFT))/(max(building$Price.SQFT) - min(building$Price.SQFT))
+Score <- (building$Score - min(building$Score))/(max(building$Score) - min(building$Score))
+Tacoma <- building$Tacoma*1
+Puyallup <- building$Puyallup*1
+Land <- building$Land*1
+Multifamily <- building$Multifamily*1
+Industrial <- building$Industrial*1
+Office <- building$Office*1
+Retail <- building$Retail*1
+Investment <- building$Investment*1
+OwnerUser <- building$OwnerUser*1
+InvestmentNNN <- building$InvestmentNNN*1
+Investment_or_Owner_User <- building$Investment_or_Owner_User*1
+
+building2 <- data.frame(Price, SquareFeet, Price.SQFT, Score, Tacoma, Puyallup, Land, Multifamily, Industrial, Office, Retail, Investment, OwnerUser, InvestmentNNN, Investment_or_Owner_User)
+building2
+str(building2)
+
+#check for duplicates
+duplicated(building2$Price)
+
+#remove rows with duplicates
+building2 <- building2[!duplicated(building2[ , "Price"]),]
+
+building2
+```
+
+
+```{r}
+#make neuralnet
+set.seed(3)
+bld_neun <- neuralnet(Score ~ Price.SQFT + Land + SquareFeet + Tacoma + Industrial + Multifamily + Office + Investment + OwnerUser, data = building2, linear.output = T, hidden = c(5,1), act.fct = "logistic", rep = 10)
+
+bld_neun
+
+
+#save the model
+save(file="buildingneunetmodel",bld_neun)
+
+
+# display weights
+bld_neun$weights
+
+# display predictions
+predict_bld <- prediction(bld_neun)
+predict_bld
+
+#extracting data from array
+predict_bld_score <- predict_bld$rep1[,10]
+predict_bld_score
+
+#to add it to the dataset
+building2$Score.Predict <- predict_bld_score
+
+building2
+```
+
+
+```{r}
+# plot network
+plot(bld_neun, rep="best")
+
+actual = c(building2$Score)
+
+library(Metrics)
+neunet_bld.RMSE <- rmse(building2$Score, predict_bld_score)
+neunet_bld.RMSE
+```
+
+
+```{r}
+#now make the CSV
+building_for_csv <- read.csv("NeuralNetSet.csv")
+
+#check for duplicates
+duplicated(building_for_csv$Price)
+
+#remove rows with duplicates
+building_for_csv <- building_for_csv[!duplicated(building_for_csv[ , "Price"]),]
+
+#denormalize predicted score
+unnorm_predict_bld_score <- predict_bld_score * (max(building_for_csv$Score)-min(building_for_csv$Score)) + min(building_for_csv$Score)
+unnorm_predict_bld_score
+
+
+building_for_csv
+
+building_for_csv$Score.Predict <- unnorm_predict_bld_score
+setwd("D:/Templates/UW Stuff/Classes/MSBA/Classes/PM Stuff for me/NeuralNet")
+write.csv(building_for_csv, "D:/Templates/UW Stuff/Classes/MSBA/Classes/PM Stuff for me/NeuralNet\\Enrique_Building_Score.csv", row.names = FALSE)
+```
+
+
+```{r}
+#take that model and use it on a training set
+#creating the training and validation sets
+
+
+bld_training = sort(sample(nrow(building2), nrow(building2)*0.6))
+bld_train <- building2[bld_training, ]
+bld_valid <- building2[-bld_training, ]
+bld_train
+
+#applying the model to the training set
+set.seed(3)
+neun_bld_train1 <- neuralnet(Score ~ Price.SQFT + Land + SquareFeet + Tacoma + Industrial + Multifamily + Office + Investment + OwnerUser, data = bld_train, linear.output = T, hidden = c(5,1), act.fct = "logistic", rep = 10)
+```
+
+
+```{r}
+# display train predictions
+predict_bld_train1 <- prediction(neun_bld_train1)
+predict_bld_train1
+
+#extracting data from array
+predict_score_bld_train1 <- predict_bld_train1$rep1[,10]
+predict_score_bld_train1
+
+#to add it to the dataset
+bld_train$Score.Predict <- predict_score_bld_train1
+
+bld_train
+
+# plot network
+plot(neun_bld_train1, rep = "best")
+```
+
+
+```{r}
+#denormalize predicted score
+#predict_score_bld_train1 <- (predict_score_bld_train1 * 2) + 3
+#predict_score_bld_train1
+
+#This is an example of what I am doing below
+x = 1:5
+x
+normalized = (x - min(x))/(max(x) - min(x))
+normalized
+max(x)
+denormalized = (normalized) * (max(x) - min(x)) + min(x)
+denormalized
+
+
+#denormalize score
+#rmse_building <- read.csv
+
+bld_train$Score
+og_bld_train_score <- (bld_train$Score) * (max(building$Score) - min(building$Score)) + min(building$Score)
+og_bld_train_score
+
+unnorm_predict_score_bld_train1 <- (predict_score_bld_train1) * (max(og_bld_train_score) - min(og_bld_train_score)) + min(og_bld_train_score)
+unnorm_predict_score_bld_train1
+
+
+library(Metrics)
+neunet_bld_train1.RMSE <- rmse(og_bld_train_score, unnorm_predict_score_bld_train1)
+neunet_bld_train1.RMSE
+
+
+library(caret)
+#as.factor(round(predict_score_bld_train1,0))
+confusionMatrix(as.factor(round(predict_score_bld_train1,0)),as.factor(bld_train$Score))
+
+
+
+#One thing to note, although RMSE is high, we can still count on that the SSE is still very very low, meaning that the generalized capability of the model is doing extremely well.
+```
+
+
+```{r}
+#now use it on the validation set
+set.seed(3)
+neun_bld_valid1 <- neuralnet(Score ~ Price.SQFT + Land + SquareFeet + Tacoma + Industrial + Multifamily + Office + Investment + OwnerUser, data = bld_valid, linear.output = T, hidden = c(5,1), act.fct = "logistic", rep = 10)
+
+# display valid predictions
+predict_bld_valid1 <- prediction(neun_bld_valid1)
+predict_bld_valid1
+
+#extracting data from array
+predict_score_bld_valid1 <- predict_bld_valid1$rep1[,10]
+predict_score_bld_valid1
+
+#to add it to the dataset
+bld_valid$Score.Predict <- predict_score_bld_valid1
+
+bld_valid
+
+# plot network
+plot(neun_bld_valid1, rep="best")
+```
+
+
+```{r}
+#denormalize predicted score
+#predict_score_bld_valid1 <- (predict_score_bld_valid1 * 2) + 3
+#predict_score_bld_valid1
+
+#This is an example of what I am doing below
+x = 1:5
+x
+normalized = (x - min(x))/(max(x) - min(x))
+normalized
+max(x)
+denormalized = (normalized) * (max(x) - min(x)) + min(x)
+denormalized
+
+
+#denormalize score
+rmse_building <- read.csv
+
+bld_valid$Score
+og_bld_valid_score <- (bld_valid$Score) * (max(building$Score) - min(building$Score)) + min(building$Score)
+og_bld_valid_score
+
+unnorm_predict_score_bld_valid1 <- (predict_score_bld_valid1) * (max(og_bld_valid_score) - min(og_bld_valid_score)) + min(og_bld_valid_score)
+unnorm_predict_score_bld_valid1
+
+library(Metrics)
+neunet_bld_valid1.RMSE <- rmse(og_bld_valid_score, unnorm_predict_score_bld_valid1)
+neunet_bld_valid1.RMSE
+
+bld_valid
+```
+
+
+```{r}
+library(caret)
+#as.factor(round(predict_score_bld_valid1,0))
+confusionMatrix(as.factor(round(unnorm_predict_score_bld_valid1,0)),as.factor(og_bld_valid_score))
+
+print(unnorm_predict_score_bld_valid1)
+min(unnorm_predict_score_bld_valid1)
+max(unnorm_predict_score_bld_valid1)
+bld_valid$Score
+
+#For this first prediction, I am guessing that the RMSE is so drastically larger because of the difference in data. The law of large numbers and such.
+```
+
+
+```{r}
+#DISCLAIMER. I originally forgot to make a traininga and validation set for this, so basically, its not tuned at all right now. 
+#rescale for tanh activation function
+
+
+bld_train_tanh <- building
+summary(bld_train_tanh$Price)
+
+bld_train_tanh$Price <- (2 * ((bld_train_tanh$Price - min(bld_train_tanh$Price))/max(bld_train_tanh$Price) - min(bld_train_tanh$Price))) - 1
+bld_train_tanh$SquareFeet <- (2 * ((bld_train_tanh$SquareFeet - min(bld_train_tanh$SquareFeet))/max(bld_train_tanh$SquareFeet) - min(bld_train_tanh$SquareFeet))) - 1
+bld_train_tanh$Price.SQFT <- (2 * ((bld_train_tanh$Price.SQFT - min(bld_train_tanh$Price.SQFT))/max(bld_train_tanh$Price.SQFT) - min(bld_train_tanh$Price.SQFT))) - 1
+bld_train_tanh$Score <- (2 * ((bld_train_tanh$Score - min(bld_train_tanh$Score))/max(bld_train_tanh$Score) - min(bld_train_tanh$Score))) - 1
+bld_train_tanh$Tacoma <- (2 * ((bld_train_tanh$Tacoma - min(bld_train_tanh$Tacoma))/max(bld_train_tanh$Tacoma) - min(bld_train_tanh$Tacoma))) - 1
+bld_train_tanh$Puyallup <- (2 * ((bld_train_tanh$Puyallup - min(bld_train_tanh$Puyallup))/max(bld_train_tanh$Puyallup) - min(bld_train_tanh$Puyallup))) - 1
+bld_train_tanh$Land <- (2 * ((bld_train_tanh$Land - min(bld_train_tanh$Land))/max(bld_train_tanh$Land) - min(bld_train_tanh$Land))) - 1
+bld_train_tanh$Multifamily <- (2 * ((bld_train_tanh$Multifamily - min(bld_train_tanh$Multifamily))/max(bld_train_tanh$Multifamily) - min(bld_train_tanh$Multifamily))) - 1
+bld_train_tanh$Industrial <- (2 * ((bld_train_tanh$Industrial - min(bld_train_tanh$Industrial))/max(bld_train_tanh$Industrial) - min(bld_train_tanh$Industrial))) - 1
+bld_train_tanh$Office <- (2 * ((bld_train_tanh$Office - min(bld_train_tanh$Office))/max(bld_train_tanh$Office) - min(bld_train_tanh$Office))) - 1
+bld_train_tanh$Retail <- (2 * ((bld_train_tanh$Retail - min(bld_train_tanh$Retail))/max(bld_train_tanh$Retail) - min(bld_train_tanh$Retail))) - 1
+bld_train_tanh$Investment <- (2 * ((bld_train_tanh$Investment - min(bld_train_tanh$Investment))/max(bld_train_tanh$Investment) - min(bld_train_tanh$Investment))) - 1
+bld_train_tanh$OwnerUser <- (2 * ((bld_train_tanh$OwnerUser - min(bld_train_tanh$OwnerUser))/max(bld_train_tanh$OwnerUser) - min(bld_train_tanh$OwnerUser))) - 1
+bld_train_tanh$InvestmentNNN <- (2 * ((bld_train_tanh$InvestmentNNN - min(bld_train_tanh$InvestmentNNN))/max(bld_train_tanh$InvestmentNNN) - min(bld_train_tanh$InvestmentNNN))) - 1
+bld_train_tanh$Investment_or_Owner_User <- (2 * ((bld_train_tanh$Investment_or_Owner_User - min(bld_train_tanh$Investment_or_Owner_User))/max(bld_train_tanh$Investment_or_Owner_User) - min(bld_train_tanh$Investment_or_Owner_User))) - 1
+
+#remove the value with NaN values. I don't know why they are there, but I do not believe it has much predictive power, so dropping it is the easier choice. 
+
+bld_train_tanh_true <- subset(bld_train_tanh, select = -c(InvestmentNNN))
+bld_train_tanh_true
+```
+
+
+```{r}
+#make training and validation sets
+bld_training_tanh = sort(sample(nrow(bld_train_tanh_true), nrow(bld_train_tanh_true)*0.6))
+bld_train_tanh <- bld_train_tanh_true[bld_training_tanh, ]
+bld_valid_tanh <- bld_train_tanh_true[-bld_training_tanh, ]
+bld_train_tanh
+```
+
+
+```{r}
+#applying the tanh model to the training set
+set.seed(4)
+neun_bld_train2 <- neuralnet(Score ~ Price + SquareFeet + Price.SQFT + Tacoma + Puyallup + Office + Land + Industrial + OwnerUser, data = bld_train_tanh, linear.output = T, hidden = c(4,1), act.fct = "tanh", rep = 4)
+
+#display weights
+neun_bld_train2$weights
+
+# display train predictions
+predict_bld_train2 <- prediction(neun_bld_train2)
+predict_bld_train2
+
+#extracting data from array
+predict_score_bld_train2 <- predict_bld_train2$rep1[,10]
+predict_score_bld_train2
+
+#to add it to the dataset
+bld_train_tanh$Score.Predict <- predict_score_bld_train2
+
+bld_train_tanh
+
+# plot network
+plot(neun_bld_train2, rep = "best")
+```
+
+
+```{r}
+library(Metrics)
+neunet_bld_train2.RMSE <- rmse(bld_train_tanh$Score, predict_score_bld_train2)
+neunet_bld_train2.RMSE
+
+#moving on, this tanh function isn't proving to be super useful. I think maybe it can get better, I got as low as .2 for the error rate but the RMSE still stands at a ~.6 which is not good. I won't be testing the model on the validation set at this point in time. 
+```
+
+
+
+```{r}
+#We do the exact same process as building for census
+setwd("D:/Templates/UW Stuff/Classes/MSBA/Classes/PM Stuff for me/NeuralNet")
+
+census <- read.csv("NeunetCensusSet.csv")
+
+census
+```
+
+
+```{r}
+#here is the best model for census, other models are found below.
+
+
+#check for duplicates
+duplicated(census$Population)
+
+#remove rows with duplicates
+census <- census[!duplicated(census[ , "Population"]),]
+
+census
+
+
+str(census)
+```
+
+
+```{r}
+#Change all variables into a single scale
+#This is because percentages cannot compare to whole numbers and vice versa, its best to just normalize everything
+census$Population <- (census$Population - min(census$Population))/(max(census$Population) - min(census$Population))
+
+census$Population..3.Miles <- (census$Population..3.Miles - min(census$Population..3.Miles))/(max(census$Population..3.Miles) - min(census$Population..3.Miles))
+
+census$Households..3.Miles <- (census$Households..3.Miles - min(census$Households..3.Miles))/(max(census$Households..3.Miles) - min(census$Households..3.Miles))
+
+census$Kids.under.5 <- (census$Kids.under.5 - min(census$Kids.under.5))/(max(census$Kids.under.5) - min(census$Kids.under.5))
+
+census$Kids.under.5..3.Miles <- (census$Kids.under.5..3.Miles - min(census$Kids.under.5..3.Miles))/(max(census$Kids.under.5..3.Miles) - min(census$Kids.under.5..3.Miles))
+
+census$Kids.5.to.9 <- (census$Kids.5.to.9 - min(census$Kids.5.to.9))/(max(census$Kids.5.to.9) - min(census$Kids.5.to.9))
+
+census$Kids.under.5..3.Miles <- (census$Kids.under.5..3.Miles - min(census$Kids.under.5..3.Miles))/(max(census$Kids.under.5..3.Miles) - min(census$Kids.under.5..3.Miles))
+
+census$Average.Age <- (census$Average.Age - min(census$Average.Age))/(max(census$Average.Age) - min(census$Average.Age))
+
+census$Household.income.under.40K..3.Mile <- (census$Household.income.under.40K..3.Mile - min(census$Household.income.under.40K..3.Mile))/(max(census$Household.income.under.40K..3.Mile) - min(census$Household.income.under.40K..3.Mile))
+
+census$Household.income.40K.to.50K..3.Mile <- (census$Household.income.40K.to.50K..3.Mile - min(census$Household.income.40K.to.50K..3.Mile))/(max(census$Household.income.40K.to.50K..3.Mile) - min(census$Household.income.40K.to.50K..3.Mile))
+
+census$Household.income.50K.to.60K..3.Mile <- (census$Household.income.50K.to.60K..3.Mile - min(census$Household.income.50K.to.60K..3.Mile))/(max(census$Household.income.50K.to.60K..3.Mile) - min(census$Household.income.50K.to.60K..3.Mile))
+
+census$Household.income.60K.to.75K..3.Mile <- (census$Household.income.60K.to.75K..3.Mile - min(census$Household.income.60K.to.75K..3.Mile))/(max(census$Household.income.60K.to.75K..3.Mile) - min(census$Household.income.60K.to.75K..3.Mile))
+
+census$Household.income.75K.to.100K..3.Mile <- (census$Household.income.75K.to.100K..3.Mile - min(census$Household.income.75K.to.100K..3.Mile))/(max(census$Household.income.75K.to.100K..3.Mile) - min(census$Household.income.75K.to.100K..3.Mile))
+
+census$Household.income.100K.to.125K..3.Mile <- (census$Household.income.100K.to.125K..3.Mile - min(census$Household.income.100K.to.125K..3.Mile))/(max(census$Household.income.100K.to.125K..3.Mile) - min(census$Household.income.100K.to.125K..3.Mile))
+
+census$Household.income.125K.to.150K..3.Mile <- (census$Household.income.125K.to.150K..3.Mile - min(census$Household.income.125K.to.150K..3.Mile))/(max(census$Household.income.125K.to.150K..3.Mile) - min(census$Household.income.125K.to.150K..3.Mile))
+
+census$Household.income.150K.to.200K..3.Mile <- (census$Household.income.150K.to.200K..3.Mile - min(census$Household.income.150K.to.200K..3.Mile))/(max(census$Household.income.150K.to.200K..3.Mile) - min(census$Household.income.150K.to.200K..3.Mile))
+
+census$Household.income.200K...3.Mile <- (census$Household.income.200K...3.Mile - min(census$Household.income.200K...3.Mile))/(max(census$Household.income.200K...3.Mile) - min(census$Household.income.200K...3.Mile))
+
+census$Area.Score <- (census$Area.Score - min(census$Area.Score))/(max(census$Area.Score) - min(census$Area.Score))
+
+census
+str(census)
+```
+
+
+```{r}
+#make neuralnet
+
+cens_tanh
+set.seed(6)
+census_neun <- neuralnet(Area.Score ~ Population + Population..3.Miles + Households..3.Miles + Kids.under.5 + Kids.under.5..3.Miles + Kids.5.to.9 + Average.Age + Household.income.40K.to.50K..3.Mile + Household.income.50K.to.60K..3.Mile + Household.income.60K.to.75K..3.Mile, data = cens_tanh, linear.output = T, hidden = c(4,1), act.fct = "tanh", rep = 10)
+
+
+save(file="censusneunetmodel",census_neun)
+
+# display weights
+census_neun$weights
+
+# display predictions
+predict_census <- prediction(census_neun)
+predict_census
+
+#extracting data from array
+predict_score_census <- predict_census$rep1[,11]
+predict_score_census
+
+#to add it to the dataset
+cens_tanh$Score.Predict <- predict_score_census
+
+cens_tanh
+
+# plot network
+plot(census_neun, rep="best")
+
+actual = c(census$Area.Score)
+
+library(Metrics)
+census_neun.RMSE <- rmse(census$Area.Score, predict_score_census)
+census_neun.RMSE
+```
+
+
+```{r}
+#now make the CSV
+census_for_csv <- read.csv("NeunetCensusSet.csv")
+
+#check for duplicates
+duplicated(census_for_csv$Population)
+
+#remove rows with duplicates
+census_for_csv <- census_for_csv[!duplicated(census_for_csv[ , "Population"]),]
+
+census_for_csv
+
+#denormalize predicted score
+unnorm_predict_census_score <- predict_score_census * (max(census_for_csv$Area.Score)-min(census_for_csv$Area.Score)) + min(census_for_csv$Area.Score)
+unnorm_predict_census_score
+
+census_for_csv
+
+census_for_csv$Score.Predict <- unnorm_predict_census_score
+setwd("D:/Templates/UW Stuff/Classes/MSBA/Classes/PM Stuff for me/NeuralNet")
+write.csv(census_for_csv, "D:/Templates/UW Stuff/Classes/MSBA/Classes/PM Stuff for me/NeuralNet\\Enrique_Census_Score.csv", row.names = FALSE)
+```
+
+```{r}
+#Now we make training and validation sets for census
+
+#DISCLAIMER. Like the previous ones, I found ways to calculate the error because once you add more and more values, the plot sooner or later excludes it from the visualization. So I am limiting my inputs to show me the error for now. 
+
+cens_training = sort(sample(nrow(census), nrow(census)*0.6))
+cens_train <- census[cens_training, ]
+cens_valid <- census[-cens_training, ]
+cens_train
+cens_valid
+```
+
+
+```{r}
+#applying the model to the training set
+set.seed(5)
+neun_cens_train1 <- neuralnet(Area.Score ~ Population + Population..3.Miles + Households..3.Miles + Kids.under.5 + Kids.under.5..3.Miles + Kids.5.to.9 + Average.Age + Household.income.40K.to.50K..3.Mile + Household.income.50K.to.60K..3.Mile + Household.income.60K.to.75K..3.Mile, data = cens_train, linear.output = T, hidden = c(4,1), rep = 10)
+
+
+# display train weights
+neun_cens_train1$weights
+
+# display train predictions
+predict_cens_train1 <- prediction(neun_cens_train1)
+predict_cens_train1
+
+#extracting data from array
+predict_score_cens_train1 <- predict_cens_train1$rep1[,11]
+predict_score_cens_train1
+
+#to add it to the dataset
+cens_train$Score.Predict <- predict_score_cens_train1
+
+cens_train
+
+# plot network
+plot(neun_cens_train1, rep="best")
+```
+
+
+```{r}
+#denormalize data 
+
+
+
+library(Metrics)
+neunet_cens_train1.RMSE <- rmse(cens_train$Area.Score, predict_score_cens_train1)
+neunet_cens_train1.RMSE
+```
+
+
+```{r}
+#lets apply this to a validation set
+set.seed(5)
+neun_cens_valid1 <- neuralnet(Area.Score ~ Population + Population..3.Miles + Households..3.Miles + Kids.under.5 + Kids.under.5..3.Miles + Kids.5.to.9 + Average.Age + Household.income.40K.to.50K..3.Mile + Household.income.50K.to.60K..3.Mile + Household.income.60K.to.75K..3.Mile, data = cens_valid, linear.output = T, hidden = c(4,1), rep = 10)
+
+
+# display train weights
+neun_cens_valid1$weights
+
+# display train predictions
+predict_cens_valid1 <- prediction(neun_cens_valid1)
+predict_cens_valid1
+
+#extracting data from array
+predict_score_cens_valid1 <- predict_cens_valid1$rep1[,11]
+predict_score_cens_valid1
+
+#to add it to the dataset
+cens_valid$Score.Predict <- predict_score_cens_valid1
+
+cens_valid
+
+# plot network
+plot(neun_cens_valid1, rep="best")
+```
+
+
+```{r}
+library(Metrics)
+neunet_cens_valid1.RMSE <- rmse(cens_valid$Area.Score, predict_score_cens_valid1)
+neunet_cens_valid1.RMSE
+
+#so as we can see, the SSE error is much better, almost cut down by half, most likely due to the smaller amount of variables. Maybe because of this again, like I argued the previous model for building, this may be the reason why the RMSE is bigger. This time however, it is not as big of a difference as the building model.
+```
+
+
+```{r}
+#lets try and work the census model with the tanh function.
+cens_tanh <- census
+cens_tanh
+
+#set scale from 0 to 1 to -1 to 1
+cens_tanh$Population <- (2 * ((cens_tanh$Population - min(cens_tanh$Population))/max(cens_tanh$Population) - min(cens_tanh$Population))) - 1
+cens_tanh$Population..3.Miles <- (2 * ((cens_tanh$Population..3.Miles - min(cens_tanh$Population..3.Miles))/max(cens_tanh$Population..3.Miles) - min(cens_tanh$Population..3.Miles))) - 1
+cens_tanh$Households..3.Miles <- (2 * ((cens_tanh$Households..3.Miles - min(cens_tanh$Households..3.Miles))/max(cens_tanh$Households..3.Miles) - min(cens_tanh$Households..3.Miles))) - 1
+cens_tanh$Kids.under.5 <- (2 * ((cens_tanh$Kids.under.5 - min(cens_tanh$Kids.under.5))/max(cens_tanh$Kids.under.5) - min(cens_tanh$Kids.under.5))) - 1
+cens_tanh$Kids.under.5..3.Miles <- (2 * ((cens_tanh$Kids.under.5..3.Miles - min(cens_tanh$Kids.under.5..3.Miles))/max(cens_tanh$Kids.under.5..3.Miles) - min(cens_tanh$Kids.under.5..3.Miles))) - 1
+cens_tanh$Kids.5.to.9 <- (2 * ((cens_tanh$Kids.5.to.9 - min(cens_tanh$Kids.5.to.9))/max(cens_tanh$Kids.5.to.9) - min(cens_tanh$Kids.5.to.9))) - 1
+cens_tanh$Kids.5.to.9..3.Miles <- (2 * ((cens_tanh$Kids.5.to.9..3.Miles - min(cens_tanh$Kids.5.to.9..3.Miles))/max(cens_tanh$Kids.5.to.9..3.Miles) - min(cens_tanh$Kids.5.to.9..3.Miles))) - 1
+cens_tanh$Average.Age <- (2 * ((cens_tanh$Average.Age - min(cens_tanh$Average.Age))/max(cens_tanh$Average.Age) - min(cens_tanh$Average.Age))) - 1
+cens_tanh$Household.income.under.40K..3.Mile <- (2 * ((cens_tanh$Household.income.under.40K..3.Mile - min(cens_tanh$Household.income.under.40K..3.Mile))/max(cens_tanh$Household.income.under.40K..3.Mile) - min(cens_tanh$Household.income.under.40K..3.Mile))) - 1
+cens_tanh$Household.income.40K.to.50K..3.Mile <- (2 * ((cens_tanh$Household.income.40K.to.50K..3.Mile - min(cens_tanh$Household.income.40K.to.50K..3.Mile))/max(cens_tanh$Household.income.40K.to.50K..3.Mile) - min(cens_tanh$Household.income.40K.to.50K..3.Mile))) - 1
+cens_tanh$Household.income.50K.to.60K..3.Mile <- (2 * ((cens_tanh$Household.income.50K.to.60K..3.Mile - min(cens_tanh$Household.income.50K.to.60K..3.Mile))/max(cens_tanh$Household.income.50K.to.60K..3.Mile) - min(cens_tanh$Household.income.50K.to.60K..3.Mile))) - 1
+cens_tanh$Household.income.60K.to.75K..3.Mile <- (2 * ((cens_tanh$Household.income.60K.to.75K..3.Mile - min(cens_tanh$Household.income.60K.to.75K..3.Mile))/max(cens_tanh$Household.income.60K.to.75K..3.Mile) - min(cens_tanh$Household.income.60K.to.75K..3.Mile))) - 1
+cens_tanh$Household.income.75K.to.100K..3.Mile <- (2 * ((cens_tanh$Household.income.75K.to.100K..3.Mile - min(cens_tanh$Household.income.75K.to.100K..3.Mile))/max(cens_tanh$Household.income.75K.to.100K..3.Mile) - min(cens_tanh$Household.income.75K.to.100K..3.Mile))) - 1
+cens_tanh$Household.income.100K.to.125K..3.Mile <- (2 * ((cens_tanh$Household.income.100K.to.125K..3.Mile - min(cens_tanh$Household.income.100K.to.125K..3.Mile))/max(cens_tanh$Household.income.100K.to.125K..3.Mile) - min(cens_tanh$Household.income.100K.to.125K..3.Mile))) - 1
+cens_tanh$Household.income.125K.to.150K..3.Mile <- (2 * ((cens_tanh$Household.income.125K.to.150K..3.Mile - min(cens_tanh$Household.income.125K.to.150K..3.Mile))/max(cens_tanh$Household.income.125K.to.150K..3.Mile) - min(cens_tanh$Household.income.125K.to.150K..3.Mile))) - 1
+cens_tanh$Household.income.150K.to.200K..3.Mile <- (2 * ((cens_tanh$Household.income.150K.to.200K..3.Mile - min(cens_tanh$Household.income.150K.to.200K..3.Mile))/max(cens_tanh$Household.income.150K.to.200K..3.Mile) - min(cens_tanh$Household.income.125K.to.150K..3.Mile))) - 1
+cens_tanh$Household.income.200K...3.Mile <- (2 * ((cens_tanh$Household.income.200K...3.Mile - min(cens_tanh$Household.income.200K...3.Mile))/max(cens_tanh$Household.income.200K...3.Mile) - min(cens_tanh$Household.income.200K...3.Mile))) - 1
+
+cens_tanh
+```
+
+
+```{r}
+#make training and validation sets
+cens_training_tanh = sort(sample(nrow(cens_tanh), nrow(cens_tanh)*0.6))
+cens_train_tanh <- cens_tanh[cens_training_tanh, ]
+cens_valid_tanh <- cens_tanh[-cens_training_tanh, ]
+cens_train_tanh
+```
+
+
+```{r}
+#lets make a model with tanh!
+set.seed(6)
+neun_cens_train2 <- neuralnet(Area.Score ~ Population + Population..3.Miles + Households..3.Miles + Kids.under.5 + Kids.under.5..3.Miles + Kids.5.to.9 + Average.Age + Household.income.40K.to.50K..3.Mile + Household.income.50K.to.60K..3.Mile + Household.income.60K.to.75K..3.Mile, data = cens_train_tanh, linear.output = T, hidden = c(4,1), act.fct = "tanh", rep = 10)
+
+
+#display weights
+neun_cens_train2$weights
+
+# display train predictions
+predict_cens_train2 <- prediction(neun_cens_train2)
+predict_cens_train2
+
+#extracting data from array
+predict_score_cens_train2 <- predict_cens_train2$rep1[,11]
+predict_score_cens_train2
+
+#to add it to the dataset
+cens_train_tanh$Score.Predict <- predict_score_cens_train2
+
+cens_train_tanh
+
+# plot network
+plot(neun_cens_train2, rep = "best")
+```
+
+
+```{r}
+#denormalize data
+predict_score_cens_train2 <- (predict_score_cens_train2 * 2) + 3
+predict_score_cens_train2
+
+cens_train_tanh$Area.Score <- (cens_train_tanh$Area.Score * 2) + 3
+cens_train_tanh$Area.Score
+
+library(Metrics)
+neunet_cens_train2.RMSE <- rmse(cens_train_tanh$Area.Score, predict_score_cens_train2)
+neunet_cens_train2.RMSE
+
+
+    
+confusionMatrix(as.factor(round(predict_score_cens_train2,0)),as.factor(cens_train_tanh$Area.Score))
+
+
+
+
+class(cens_train_tanh$Area.Score)
+class(predict_score_cens_train2)
+```
+
+
+```{r}
+#To be honest, its 3AM and i just copied the model from the earlier one, and this things is pretty good. SSE of .08 i think and RMSE of .2 something. Im moving on to the validation set. 
+
+set.seed(6)
+neun_cens_valid2 <- neuralnet(Area.Score ~ Population + Population..3.Miles + Households..3.Miles + Kids.under.5 + Kids.under.5..3.Miles + Kids.5.to.9 + Average.Age + Household.income.40K.to.50K..3.Mile + Household.income.50K.to.60K..3.Mile + Household.income.60K.to.75K..3.Mile, data = cens_valid_tanh, linear.output = T, hidden = c(4,1), act.fct = "tanh", rep = 10)
+
+
+#display weights
+neun_cens_valid2$weights
+
+# display train predictions
+predict_cens_valid2 <- prediction(neun_cens_valid2)
+predict_cens_valid2
+
+#extracting data from array
+predict_score_cens_valid2 <- predict_cens_valid2$rep1[,11]
+predict_score_cens_valid2
+
+#to add it to the dataset
+cens_valid_tanh$Score.Predict <- predict_score_cens_valid2
+
+cens_valid_tanh
+
+# plot network
+plot(neun_cens_valid2, rep = "best")
+
+#denormalized data
+predict_score_cens_valid2 <- (predict_score_cens_valid2 * 2) + 3
+predict_score_cens_valid2
+
+cens_valid_tanh$Area.Score <- (cens_valid_tanh$Area.Score * 2) + 3
+cens_valid_tanh$Area.Score
+
+
+library(Metrics)
+neunet_cens_valid2.RMSE <- rmse(cens_valid_tanh$Area.Score, predict_score_cens_valid2)
+neunet_cens_valid2.RMSE
+
+
+
+confusionMatrix(as.factor(round(predict_score_cens_valid2,0)),as.factor(cens_valid_tanh$Area.Score))
+```
+
+
