@@ -5,7 +5,7 @@ from random import randint
 import re
 import csv
 from datetime import datetime
-import censusgeocode
+import censusgeocode as cg
 
 
 #Header information
@@ -37,7 +37,7 @@ def grab_placards():  ## NOTE -- this only searches properties that are listed f
 def listing_info(url_list):
     count=0
     Buildings = []
-    cg = censusgeocode.CensusGeocode(benchmark='Public_AR_Current', vintage='ACS2018_Current')
+    #cg = censusgeocode.CensusGeocode(benchmark='Public_AR_Current', vintage='ACS2018_Current')
     for list in url_list:
         for item in list:
             count += 1
@@ -66,17 +66,19 @@ def listing_info(url_list):
                 site_facts['Postal_Code'] = a1[2][-5:]
                 geocode = cg.address(street=site_facts['Address_Line'],city=site_facts['City'],state=site_facts['State'],zipcode=site_facts['Postal_Code'])
                 try:
-                    GEOID = geocode[0]['geographies']['2010 Census Blocks'][0]['GEOID'][0:12]
+                    GEOID = geocode[0]['geographies']['2020 Census Blocks'][0]['GEOID'][0:12]
                     site_facts['bg_geo_id'] = GEOID
                     print(count, site_facts['Address_Line'], site_facts['City'], GEOID)
                 except Exception as err:
+                    site_facts['bg_geo_id'] = None
                     pass
+
             else:
                 site_facts['Address_Line'] = loc
                 site_facts["City"] = "N/A"
                 site_facts['State'] = "N/A"
                 site_facts['Postal_Code'] = "N/A"
-
+                site_facts['bg_geo_id'] = None
 
             is_column = bool(page_soup.find("div", {
                 "class": "property-facts__labels-one-col"}))  # Test to see how the data is formated on the listing page.
@@ -103,6 +105,8 @@ def listing_info(url_list):
                 site_facts['Price'] = temp_dict1.get('Price', None)
                 if site_facts['Price'] == None:
                     pass
+                elif '-' in site_facts['Price']:
+                    site_facts['Price'] = None
                 else:
                     temprice = site_facts['Price']
                     temprice2 = temprice.replace(',', '')
@@ -157,7 +161,7 @@ def listing_info(url_list):
 
                 site_facts["Sale_Leased"] = "Sale"
                 Buildings.append(site_facts)    #Append the this loop to the buildings list
-                sleep(randint(2, 4))
+                sleep(randint(5, 10))
             if is_column == False:  # This loop is used when the listing is in a table.
                 table = page_soup.table
                 table_data = table.find_all('td')
@@ -175,6 +179,8 @@ def listing_info(url_list):
                 site_facts['Price'] = temp_dict2.get('Price', None)
                 if site_facts['Price'] == None:
                     pass
+                elif '-' in site_facts['Price']:
+                    site_facts['Price'] = None
                 else:
                     temprice = site_facts['Price']
                     temprice2 = temprice.replace(',', '')
@@ -231,7 +237,7 @@ def listing_info(url_list):
                 site_facts["Sale_Leased"] = "Sale"
 
                 Buildings.append(site_facts)# Add the site_Facts to the Buildings List
-                sleep(randint(2, 4))
+                sleep(randint(5, 10))
     return Buildings
 
 
