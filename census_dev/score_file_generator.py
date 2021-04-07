@@ -6,6 +6,8 @@ from combine_var import getConn
 import reverse_geocoder2 as rg2
 import xlsxwriter
 from math import isnan
+import sys
+
 
 #Grab records, pick best records, create excel file, file in excel file, add formatting, handle multiple item versions
 
@@ -19,13 +21,14 @@ def pull_census(score_user,no_score_only=True):
     pass
 
 ##pick buildings
-def select_building(conn,filename,limit=10):
+def select_sale_building(conn,user='',limit=10):
     if limit<=0:
         limit=10
+    if user:
+        user_filter = 'and bs.uid='+str(user)
     sql_command="""\
     select
     bld."CS_ID"
-    ,avg(bs."Score") "Average Building Score"
     ,bld."Address_Line"
     ,bld."City"
     ,bld."Postal_Code"
@@ -78,13 +81,16 @@ def select_building(conn,filename,limit=10):
     left join "BG_Data" as bgd on bg.bg_geo_id = bgd.bg_geo_id
     inner join "Demo_Var" as dv on dv.full_variable_id=bgd.variable_id
     left join "BG_Score" as bgs on bg.bg_geo_id = bgs.bg_geo_id
-    left join "Building_Score" as bs on bld."CS_ID" = bs.cs_id
+    left join "Building_Score" as bs on bld."CS_ID" = bs.cs_id {}
+    where
+        bs."Score" is null and bld."Currently_listed"=True and bld."Sale_Lease"='Sale'
     group by bld."CS_ID",bld."Address_Line",bld."City",bld."Postal_Code",bld."Property_Type",bld."Price",bld."Year_Built",bld."SquareFeet",bld."Sale_Type",bg.bg_geo_id
     having
     max(case when dv.sid='pop' then bgd.value Else 0 END) > 0     --Handle BGs with no population
     and max(case when dv.sid='hi_tot_3MS' then bgd.value Else 0 END)>0
+    order by RANDOM()
     limit {};
-    """.format(limit)
+    """.format(user_filter,limit)
     print(sql_command)
     cur = conn.cursor()
     cur.execute(sql_command)
@@ -92,29 +98,51 @@ def select_building(conn,filename,limit=10):
         df_var=pd.read_sql_query(sql_command,conn)
     except (Exception, psycopg2.DatabaseError) as err:
         show_psycopg2_exception(err)
-    print(df_var)
+        sys.exit()
+    return df_var
+
+
+#Generate score sheet with formatting from DF
+def gen_excel(df_var,filename):
+    prop_count=len(df_var)
+    print(prop_count)
     xrow=-1
     workbook = xlsxwriter.Workbook(filename)
     worksheet = workbook.add_worksheet("Score")
+    cell_bold = workbook.add_format({'bold':True})
+    cell_underline= workbook.add_format({'underline':True})
+    cell_dollar = workbook.add_format({'num_format':'#,##0.00'})
+    cell_percent = workbook.add_format({'num_format':'0.0%'})
+    cell_score = workbook.add_format({'bg_color':'#33CCCC','bold':True})
+    worksheet.set_column(0,0,36)  #Set column A width
+    worksheet.set_column(1,prop_count,20)  #Set column A width
     for colnam in df_var.columns:
         xrow+=1
-        worksheet.write(xrow,0,colnam)
+        if colnam=="-":    #treat "-" as a blank row
+            continue
+        else:
+            worksheet.write(xrow,0,colnam,cell_bold)
         xcol=0
         for row in df_var[colnam]:
-            print(row,type(row))
             if isinstance(row,float):
                 if isnan(row):
                     row=""
             xcol+=1
-            worksheet.write(xrow,xcol,row)
+            if colnam[-5:] == "Score":
+                print('score')
+                worksheet.write(xrow,xcol,row,cell_score)
+            elif colnam in ('CS_ID','Block Group ID'):
+                worksheet.write(xrow,xcol,row,cell_underline)
+            else:
+                worksheet.write(xrow,xcol,row)
     try:
         workbook.close()
     except:
         print("File creation error")
+    return True
 
 
-
-
+#print out SQl errors
 def show_psycopg2_exception(err):
     # get details about the exception
     err_type, err_obj, traceback = sys.exc_info()
@@ -147,17 +175,25 @@ def xlsx_test(filename):
         print("File creation error")
 
 
+def control_building(conn,filename,user,limit):
+    df = select_sale_building(conn,user,limit)
+    gen_excel(df,filename)
+    ##TODO generate filename based on user
+    ##TODO call email script
+
 if __name__ == '__main__':
     conn=getConn()
     if rg2.check_for_config():
         config = rg2.read_config()
         email_config = config['Email']
         password = email_config.get('password',raw=True)
-        work_dir = email_config.get('attachment',raw=True)
+        work_dir = email_config.get('excel_output',raw=True)
         if work_dir:
             os.chdir(work_dir)
             print("Working directory:",os.getcwd())
-    select_building(conn,"test2.xlsx",5)
+        else:
+            print("")
+    control_building(conn,"test3.xlsx",2,5)
 
     # xlsx_test('test.xlsx')
 
