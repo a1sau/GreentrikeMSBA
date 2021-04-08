@@ -7,6 +7,8 @@ import reverse_geocoder2 as rg2
 import xlsxwriter
 from math import isnan
 import sys
+from datetime import datetime
+import emailer as em
 
 
 #Grab records, pick best records, create excel file, file in excel file, add formatting, handle multiple item versions
@@ -91,7 +93,6 @@ def select_sale_building(conn,user='',limit=10):
     order by RANDOM()
     limit {};
     """.format(user_filter,limit)
-    print(sql_command)
     cur = conn.cursor()
     cur.execute(sql_command)
     try:
@@ -105,7 +106,6 @@ def select_sale_building(conn,user='',limit=10):
 #Generate score sheet with formatting from DF
 def gen_excel(df_var,filename):
     prop_count=len(df_var)
-    print(prop_count)
     xrow=-1
     workbook = xlsxwriter.Workbook(filename)
     worksheet = workbook.add_worksheet("Score")
@@ -129,7 +129,6 @@ def gen_excel(df_var,filename):
                     row=""
             xcol+=1
             if colnam[-5:] == "Score":
-                print('score')
                 worksheet.write(xrow,xcol,row,cell_score)
             elif colnam in ('CS_ID','Block Group ID'):
                 worksheet.write(xrow,xcol,row,cell_underline)
@@ -137,9 +136,10 @@ def gen_excel(df_var,filename):
                 worksheet.write(xrow,xcol,row)
     try:
         workbook.close()
+        return True
     except:
         print("File creation error")
-    return True
+    return False
 
 
 #print out SQl errors
@@ -175,17 +175,55 @@ def xlsx_test(filename):
         print("File creation error")
 
 
-def control_building(conn,filename,user,limit):
-    df = select_sale_building(conn,user,limit)
-    gen_excel(df,filename)
+def control_building(conn,uid,limit):
+    filename=gen_filename(uid,1)
+
+    df = select_sale_building(conn,uid,limit)
+    ok = gen_excel(df,filename)
+    if ok:
+        return filename
+    else:
+        print("Excel generation failed")
+        return None
     ##TODO generate filename based on user
     ##TODO call email script
+    return None
+
+
+def gen_filename(uid,type=1):
+    now=datetime.now()
+    if type == 1:
+        filename="Building_"+str(uid)+"_"+now.strftime("%Y%m%d_%H%M%S")+".xlsx"
+    elif type == 2:
+        filename="Census_"+str(uid)+"_"+now.strftime("%Y%m%d_%H%M%S")+".xlsx"
+    else:
+        return None
+    return filename
+
+
+def get_user_email(conn,uid):
+    if not uid:
+        print('No user ID specified')
+        return None
+    sql_command =   """select
+                    use.email
+                    from "User" as use
+                    where
+                    use.uid = {};
+                    """.format(uid)
+    cur = conn.cursor()
+    cur.execute(sql_command)
+    email = cur.fetchone()[0]
+    #TODO add email validation
+    return email
+
 
 if __name__ == '__main__':
     conn=getConn()
     if rg2.check_for_config():
         config = rg2.read_config()
         email_config = config['Email']
+        email = email_config.get('email')
         password = email_config.get('password',raw=True)
         work_dir = email_config.get('excel_output',raw=True)
         if work_dir:
@@ -193,8 +231,11 @@ if __name__ == '__main__':
             print("Working directory:",os.getcwd())
         else:
             print("")
-    control_building(conn,"test3.xlsx",2,5)
-
+    file=control_building(conn,2,10)
+    to_email = get_user_email(conn,2)
+    if file:
+        print("Sending email:",file)
+        em.create_email(to_email,email,password,file)
     # xlsx_test('test.xlsx')
 
 
