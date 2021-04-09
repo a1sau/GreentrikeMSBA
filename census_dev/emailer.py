@@ -1,6 +1,5 @@
 # https://realpython.com/python-send-email/
 
-import configparser as cp
 import smtplib
 import ssl
 import sys
@@ -16,9 +15,7 @@ from email.header import decode_header
 import os
 from datetime import datetime
 import re
-
-
-
+import pandas as pd
 
 
 def create_email(to_email,email,password,attachment_name=None):
@@ -28,10 +25,12 @@ def create_email(to_email,email,password,attachment_name=None):
         file = attachment_name
         attachment = open(attachment_name,'rb')
         obj = MIMEBase('application','octet-stream')
-        obj.set_payload((attachment).read())
+        obj.set_payload(attachment.read())
         encoders.encode_base64(obj)
         obj.add_header('Content-Disposition',"attachment; filename= "+file)
         # Create a secure SSL context
+    else:
+        return False
     context = ssl.create_default_context()
     with smtplib.SMTP_SSL("smtp.gmail.com", port, context=context) as server:
         pass
@@ -95,6 +94,7 @@ def check_email(email,password,conn):
                 except Exception as e:
                     print(e)
                     subject = "(No Subject)"
+                    encoding = None
                 if isinstance(subject, bytes):
                     # if it's a bytes, decode to str
                     subject = subject.decode(encoding)
@@ -106,13 +106,13 @@ def check_email(email,password,conn):
                 print("From:", from_email)
             if msg.is_multipart() and (from_email.lower() != email.lower()):  #Don't download excel that are CCed from main account
                 # iterate over email parts
-                partCnt=0
+                part_cnt=0
                 for part in msg.walk():
                     # extract content type of email
                     content_type = part.get_content_type()
                     content_disposition = str(part.get("Content-Disposition"))
-                    print("Part",partCnt,attachmentLst,content_type,content_disposition)
-                    partCnt+=1
+                    print("Part",part_cnt,attachmentLst,content_type,content_disposition)
+                    part_cnt+=1
                     if "attachment" in content_disposition:
                         # download attachment
                         filename = part.get_filename()
@@ -138,8 +138,25 @@ def check_email(email,password,conn):
         print("Result of move:",str(i),"UID",msg_uid,result[0])
     return new_scores
 
-def update_user_scores():
-    pass
+def update_user_scores(inbox_folder,archive_folder):
+    if inbox_folder[0]!="/":
+        all_files=os.listdir(os.getcwd()+"/"+inbox_folder)
+    for file in all_files:
+        print(file)
+        filepath=os.path.join(os.getcwd(),inbox_folder, file)
+        try:
+            df=pd.read_excel(filepath,header=None,index_col=0)
+            print(df.loc[['CS_ID','Building Score','Block Group ID','Block Group Score']])
+        except Exception as e:
+            print("FAIL:",e)
+            pass
+        #TODO extract user from excel file name
+        #TODO loop over results and add to score ETL
+        #TODO build score ETL table
+        #TODO Write SQL to add score ETL to score tables
+        #TODO handle lease scores
+        #TODO handle census only file
+    return True
 
 
 if __name__ == '__main__':
@@ -158,6 +175,7 @@ if __name__ == '__main__':
             sys.exit("Update ""config.ini"" with email and password before running script again.")
         new_scores = check_email(email_config['email'],password,conn)
         if new_scores:
-            update_user_scores('attachment','archive')
+            update_user_scores('attachment/','archive')
     else:
         sys.exit("Configure ""config.ini"" before running script again.")
+    conn.close()
