@@ -231,10 +231,11 @@ if __name__ == '__main__':
             print("Working directory:",os.getcwd())
         else:
             print("")
-    file=control_building(conn,2,10)
-    to_email = get_user_email(conn,2)
+    uid = 3
+    file=control_building(conn,uid,10)
+    to_email = get_user_email(conn,uid)
     if file:
-        print("Sending email:",file)
+        print("Sending email:",to_email,file)
         em.create_email(to_email,email,password,file)
     # xlsx_test('test.xlsx')
 
