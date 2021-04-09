@@ -78,13 +78,12 @@ def check_email(email,password,conn):
     status, messages = imap.select("INBOX")
     messages = int(messages[0])
     print("Reviewing", messages, "messages")
-    for i in range(1, messages+1,1):  #gmail ids start at 1
+    for i in range(messages, 0,-1):  #gmail ids start at 1
         print("Msg:",i)
         # fetch the email message by ID
         attachmentLst = []
         res, msg = imap.fetch(str(i), "(RFC822)")
         for response in msg:
-            print(response)
             if isinstance(response, tuple):
                 # parse a bytes email into a message object
                 msg = em.message_from_bytes(response[1])
@@ -104,6 +103,7 @@ def check_email(email,password,conn):
                     from_email = from_email.decode(encoding)
                 print("Subject:", subject)
                 print("From:", from_email)
+                print(msg.is_multipart())
             if msg.is_multipart() and (from_email.lower() != email.lower()):  #Don't download excel that are CCed from main account
                 # iterate over email parts
                 part_cnt=0
@@ -133,9 +133,17 @@ def check_email(email,password,conn):
                             pass
         #Once message is reviewed, move out of inbox and put into reviewed
         resp, data = imap.fetch(str(i), "(UID)")
-        msg_uid = parse_uid(str(em.message_from_bytes(data[0])).strip())
-        result = imap.uid('MOVE', msg_uid, 'Reviewed')
-        print("Result of move:",str(i),"UID",msg_uid,result[0])
+        if data[0] is not None:
+            if isinstance(data[0],bytes):
+                msg_uid = parse_uid(str(em.message_from_bytes(data[0])).strip())
+            else:
+                msg_uid = parse_uid(str(data[0]).strip())
+                print(data[0])
+            if msg_uid:
+                result = imap.uid('MOVE', msg_uid, 'Reviewed')
+                print("Result of move:",str(i),"UID",msg_uid,result[0])
+            else:
+                print("UID not found",subject)
     return new_scores
 
 def update_user_scores(inbox_folder,archive_folder):
