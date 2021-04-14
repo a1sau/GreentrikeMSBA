@@ -1,0 +1,454 @@
+---
+title: "NeuralNet1"
+author: "Enrique Otanez"
+date: "3/3/2021"
+output: word_document
+---
+
+```{r}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = normalizePath("D:/Templates/UW Stuff/Classes/MSBA/Classes/Q4 Models/Tuning/NuralNet"))
+```
+
+```{r}
+#make a folder named something that makes sense
+#file name example type_model_date.csv or building_model8_20210409.csv
+#output a csv to folder where python can pull it and put it into the database
+#you want only two columns the record "cs_id" and the predicted score
+#include a signifier building vs census (make it in the name)
+library(DBI)
+library(sqldf)
+library(tidyverse)
+library(neuralnet)
+library(Metrics)
+library(caret)
+library(config)
+library(datapackage.r)
+library(jsonlite)
+```
+
+
+```{r}
+setwd("D:/Templates/UW Stuff/Classes/MSBA/Classes/Q4 Models")
+df <- read.csv("Config_File.csv")
+
+con <- DBI::dbConnect(odbc::odbc(),
+  driver = "PostgreSQL Unicode(x64)",
+  database = "TEST",
+  UID      = df$UID,
+  PWD      = df$PWD,
+  server = df$server,
+  port = 5432)
+```
+
+```{r}
+import.building <- dbGetQuery(con, 'SELECT
+    bld."CS_ID"
+    ,avg(bs."Score") "Average Building Score"
+    ,bld."Address_Line"
+    ,bld."City"
+    ,bld."Postal_Code"
+    ,bld."Property_Type"
+    ,bld."Year_Built"
+    ,bld."Price"
+    ,bld."SquareFeet"
+    ,round(cast(coalesce(bld."Price" / bld."SquareFeet",NULL) as numeric),0) "$ per sq ft"
+     ,bld."Sale_Type"
+     ,bg.bg_geo_id "Block Group ID"
+     ,avg(bgs.score) "Average Block Group Score"
+     ,max(case when dv.sid=\'pop\' then bgd.value Else 0 END) "Population"
+     ,max(case when dv.sid=\'pop_MF_3MS\' then bgd.value Else 0 END) "Population: 3 Miles"
+     ,max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) "Households: 3 Miles"
+    ,max(case when dv.sid=\'M_0_5\' then bgd.value Else 0 END)+max(case when dv.sid=\'F_0_5\' then bgd.value Else 0 END) "Kids under 5"
+     ,round(cast((max(case when dv.sid=\'M_0_5\' then bgd.value Else 0 END)+max(case when dv.sid=\'F_0_5"\' then bgd.value Else 0 END)) /
+        max(case when dv.sid=\'pop\' then bgd.value Else null END) as numeric),3) "Percent Kids under 5"
+    ,max(case when dv.sid=\'M_0_5_3MS\' then bgd.value Else 0 END)+max(case when dv.sid=\'F_0_5_3MS\' then bgd.value Else 0 END) "Kids under 5: 3 Miles"
+     ,round(cast((max(case when dv.sid=\'M_0_5_3MS\' then bgd.value Else 0 END)+max(case when dv.sid=\'F_0_5_3MS\' then bgd.value Else 0 END)) /
+        max(case when dv.sid=\'pop_MF_3MS\' then bgd.value Else null END) as numeric),3) "Percent Kids under 5: 3 Miles"
+    ,max(case when dv.sid=\'M_5_9\' then bgd.value Else 0 END)+max(case when dv.sid=\'F_5_9\' then bgd.value Else 0 END) "Kids 5 to 9"
+     ,round(cast((max(case when dv.sid=\'M_5_9\' then bgd.value Else 0 END)+max(case when dv.sid=\'F_5_9\' then bgd.value Else 0 END)) /
+        max(case when dv.sid=\'pop\' then bgd.value Else null END) as numeric),3) "Percent Kids 5 to 9"
+    ,max(case when dv.sid=\'M_5_9_3MS\' then bgd.value Else 0 END)+max(case when dv.sid=\'F_5_9_3MS\' then bgd.value Else 0 END) "Kids 5 to 9: 3 Miles"
+    ,round(cast((max(case when dv.sid=\'M_5_9_3MS\' then bgd.value Else 0 END)+max(case when dv.sid=\'F_5_9_3MS\' then bgd.value Else 0 END)) /
+         max(case when dv.sid=\'pop_MF_3MS\' then bgd.value Else null END) as numeric),3)  "Percent Kids 5 to 9: 3 Miles"
+    ,max(case when dv.sid=\'avg_age\' then bgd.value Else 0 END) "Average Age"
+    ,round(cast(sum(case when dv.sid in(\'hi_0_10_3MS\',\'hi_10_15_3MS\',\'hi_15_20_3MS\',\'hi_20_25_3MS\',\'hi_25_30_3MS\',\'hi_30_35_3MS\',\'hi_35_40_3MS\') then bgd.value  else 0 END) /
+      max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) as numeric),3) "Household income under 40K: 3 Mile"
+    ,round(cast(sum(case when dv.sid in(\'hi_40_45_3MS\',\'hi_45_50_3MS\') then bgd.value  else 0 END) /
+      max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) as numeric),3) "Household income 40K to 50K: 3 Mile"
+    ,round(cast(sum(case when dv.sid in(\'hi_50_60_3MS\') then bgd.value  else 0 END) /
+      max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) as numeric),3) "Household income 50K to 60K: 3 Mile"
+    ,round(cast(sum(case when dv.sid in(\'hi_60_75_3MS\') then bgd.value  else 0 END) /
+      max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) as numeric),3) "Household income 60K to 75K: 3 Mile"
+    ,round(cast(sum(case when dv.sid in(\'hi_75_100_3MS\') then bgd.value  else 0 END) /
+      max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) as numeric),3) "Household income 75K to 100K: 3 Mile"
+    ,round(cast(sum(case when dv.sid in(\'hi_100_125_3MS\') then bgd.value  else 0 END) /
+      max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) as numeric),3) "Household income 100K to 125K: 3 Mile"
+    ,round(cast(sum(case when dv.sid in(\'hi_125_150_3MS\') then bgd.value  else 0 END) /
+      max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) as numeric),3) "Household income 125K to 150K: 3 Mile"
+    ,round(cast(sum(case when dv.sid in(\'hi_150_200_3MS\') then bgd.value  else 0 END) /
+      max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) as numeric),3) "Household income 150K to 200K: 3 Mile"
+    ,round(cast(sum(case when dv.sid in(\'hi_200_999_3MS\') then bgd.value  else 0 END) /
+      max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) as numeric),3) "Household income 200K+: 3 Mile"
+from "Building" as bld
+left join "Block_Group" as bg on bg.bg_geo_id = bld.bg_geo_id
+left join "BG_Data" as bgd on bg.bg_geo_id = bgd.bg_geo_id
+inner join "Demo_Var" as dv on dv.full_variable_id=bgd.variable_id
+left join "BG_Score" as bgs on bg.bg_geo_id = bgs.bg_geo_id
+left join "Building_Score" as bs on bld."CS_ID" = bs.cs_id
+group by bld."CS_ID",bld."Address_Line",bld."City",bld."Postal_Code",bld."Property_Type",bld."Price",bld."Year_Built",bld."SquareFeet",bld."Sale_Type",bg.bg_geo_id
+having
+    max(case when dv.sid=\'pop\' then bgd.value Else 0 END) > 0
+    and max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) > 0')
+
+import.building
+```
+
+```{r}
+#We need to query the variables used for the score as well as the score from the DB
+
+building.scores <- sqldf('SELECT CS_ID, "Average Building Score", Address_Line, City, Postal_Code, Property_Type, Year_Built, Price, SquareFeet, "$ per sq ft", Sale_Type FROM "import.building" WHERE "Average Building Score" IS NOT NULL')
+
+building.scores
+```
+
+```{r}
+#We need to make the dummy variables for the categorical variables
+building.scores$Tacoma <- building.scores$City == "Tacoma"
+building.scores$Puyallup <- building.scores$City == "Puyallup"
+building.scores$Land <- building.scores$Property_Type == "Land"
+building.scores$Multifamily <- building.scores$Property_Type == "Multifamily"
+building.scores$Industrial <- building.scores$Property_Type == "Industrial"
+building.scores$Office <- building.scores$Property_Type == "Office"
+building.scores$Retail <- building.scores$Property_Type == "Retail"
+building.scores$Investment <- building.scores$Sale_Type == "Investment"
+building.scores$OwnerUser <- building.scores$Sale_Type == "OwnerUser"
+building.scores$InvestmentNNN <- building.scores$Sale_Type == "InvestmentNNN"
+building.scores$Investment_or_Owner_User <- building.scores$Sale_Type == "Investment or Owner User"
+
+building.scores
+```
+
+
+```{r}
+#Remove any and all NA's
+building.scores <- na.omit(building.scores)
+#Check for remaining NA's
+sum(is.na(building.scores))
+#View dataset
+building.scores
+```
+```{r}
+#do this on the og dataframe
+
+#loops with if else statement
+
+#This is to change from T/F to 0/1
+building.scores$Tacoma <- building.scores$Tacoma*1
+building.scores$Puyallup <- building.scores$Puyallup*1
+building.scores$Land <- building.scores$Land*1
+building.scores$Multifamily <- building.scores$Multifamily*1
+building.scores$Industrial <- building.scores$Industrial*1
+building.scores$Office <- building.scores$Office*1
+building.scores$Retail <- building.scores$Retail*1
+building.scores$Investment <- building.scores$Investment*1
+building.scores$OwnerUser <- building.scores$OwnerUser*1
+building.scores$InvestmentNNN <- building.scores$InvestmentNNN*1
+building.scores$Investment_or_Owner_User <- building.scores$Investment_or_Owner_User*1
+building.scores
+```
+```{r}
+#Now to normalize all numeric variables but not the score yet, we want to make a csv for exporting. 
+building.scores$Price <- (building.scores$Price - min(building.scores$Price))/(max(building.scores$Price) - min(building.scores$Price))
+
+building.scores$SquareFeet <- (building.scores$SquareFeet - min(building.scores$SquareFeet))/(max(building.scores$SquareFeet) - min(building.scores$SquareFeet))
+
+building.scores$`$ per sq ft` <- (building.scores$`$ per sq ft` - min(building.scores$`$ per sq ft`))/(max(building.scores$`$ per sq ft`) - min(building.scores$`$ per sq ft`))
+
+building.scores
+```
+```{r}
+#make the csv for exporting
+bld.export <- building.scores
+bld.export
+```
+
+
+```{r}
+#now normalize the score
+building.scores$`Average Building Score` <- (building.scores$`Average Building Score` - min(building.scores$`Average Building Score`))/(max(building.scores$`Average Building Score`) - min(building.scores$`Average Building Score`))
+
+building.scores
+```
+
+
+```{r}
+#check for duplicates
+duplicated(building.scores$Price)
+
+#remove rows with duplicates
+building.scores <- building.scores[!duplicated(building.scores[ , "Price"]),]
+```
+
+```{r}
+#to properly use rep, summ the reps and then divide by the reps (basically average just smarter)
+
+#creating the training and validation sets
+bld.training = sort(sample(nrow(building.scores), nrow(building.scores)*0.6))
+bld.train <- building.scores[bld.training, ]
+bld.valid <- building.scores[-bld.training, ]
+bld.train
+
+#applying the model to the training set
+set.seed(3)
+neun.bld.train1 <- neuralnet(`Average Building Score` ~ Land + SquareFeet + Tacoma + Industrial + Multifamily + Office + Investment + OwnerUser, data = bld.train, linear.output = T, hidden = c(5,1), act.fct = "logistic", rep = 10)
+```
+
+
+```{r}
+# display train predictions
+predict.bld.train1 <- prediction(neun.bld.train1)
+predict.bld.train1
+
+#extracting data from array
+predict.score.bld.train1 <- predict.bld.train1$rep1[,9]
+predict.score.bld.train1
+
+#to add it to the dataset
+bld.train$Score.Predict <- predict.score.bld.train1
+
+bld.train
+
+# plot network
+plot(neun.bld.train1, rep = "best")
+print(neun.bld.train1, rep = "best")
+```
+
+
+```{r}
+#calculate RMSE
+neunet_bld_train1.RMSE <- rmse(bld.train$`Average Building Score`, bld.train$Score.Predict)
+neunet_bld_train1.RMSE
+
+#denormalize score
+bld.train$Score.Predict.UNNorm <- bld.train$Score.Predict * 5
+
+#One thing to note, although RMSE is high, we can still count on that the SSE is still very very low, meaning that the generalized capability of the model is doing extremely well.
+```
+
+
+```{r}
+#now use it on the validation set
+set.seed(3)
+neun.bld.valid1 <- neuralnet(`Average Building Score` ~ Land + SquareFeet + Tacoma + Industrial + Multifamily + Office + Investment + OwnerUser, data = bld.valid, linear.output = T, hidden = c(5,1), act.fct = "logistic", rep = 10)
+
+# display valid predictions
+predict.bld.valid1 <- prediction(neun.bld.valid1)
+predict.bld.valid1
+
+#extracting data from array
+predict.score.bld.valid1 <- predict.bld.valid1$rep1[,9]
+predict.score.bld.valid1
+
+#to add it to the dataset
+bld.valid$Score.Predict <- predict.score.bld.valid1
+
+bld.valid
+
+# plot network
+plot(neun.bld.valid1, rep="best")
+```
+
+
+```{r}
+#denormalize predicted score
+
+bld.valid$Score.Predict.UNNorm <- bld.valid$Score.Predict * 5
+
+#calculate RMSE for Validation Set
+bld.valid1.RMSE <- rmse(bld.valid$`Average Building Score`, bld.valid$Score.Predict)
+bld.valid1.RMSE
+
+```
+
+```{r}
+#rescale for tanh activation function
+
+building.tanh <- building.scores
+building.tanh
+
+building.tanh <- building.tanh[!duplicated(building.tanh[ , "Price"]),]
+
+building.tanh$Price <- (2 * ((building.tanh$Price - min(building.tanh$Price))/max(building.tanh$Price) - min(building.tanh$Price))) - 1
+
+building.tanh$SquareFeet <- (2 * ((building.tanh$SquareFeet - min(building.tanh$SquareFeet))/max(building.tanh$SquareFeet) - min(building.tanh$SquareFeet))) - 1
+
+building.tanh$`$ per sq ft` <- (2 * ((building.tanh$`$ per sq ft` - min(building.tanh$`$ per sq ft`))/max(building.tanh$`$ per sq ft`) - min(building.tanh$`$ per sq ft`))) - 1
+
+building.tanh$`Average Building Score` <- (2 * ((building.tanh$`Average Building Score` - min(building.tanh$`Average Building Score`))/max(building.tanh$`Average Building Score`) - min(building.tanh$`Average Building Score`))) - 1
+
+building.tanh$Tacoma <- (2 * ((building.tanh$Tacoma - min(building.tanh$Tacoma))/max(building.tanh$Tacoma) - min(building.tanh$Tacoma))) - 1
+
+building.tanh$Puyallup <- (2 * ((building.tanh$Puyallup - min(building.tanh$Puyallup))/max(building.tanh$Puyallup) - min(building.tanh$Puyallup))) - 1
+
+building.tanh$Land <- (2 * ((building.tanh$Land - min(building.tanh$Land))/max(building.tanh$Land) - min(building.tanh$Land))) - 1
+
+building.tanh$Multifamily <- (2 * ((building.tanh$Multifamily - min(building.tanh$Multifamily))/max(building.tanh$Multifamily) - min(building.tanh$Multifamily))) - 1
+
+building.tanh$Industrial <- (2 * ((building.tanh$Industrial - min(building.tanh$Industrial))/max(building.tanh$Industrial) - min(building.tanh$Industrial))) - 1
+
+building.tanh$Office <- (2 * ((building.tanh$Office - min(building.tanh$Office))/max(building.tanh$Office) - min(building.tanh$Office))) - 1
+  
+building.tanh$Retail <- (2 * ((building.tanh$Retail - min(building.tanh$Retail))/max(building.tanh$Retail) - min(building.tanh$Retail))) - 1
+
+building.tanh$Investment <- (2 * ((building.tanh$Investment - min(building.tanh$Investment))/max(building.tanh$Investment) - min(building.tanh$Investment))) - 1
+
+building.tanh$OwnerUser <- (2 * ((building.tanh$OwnerUser - min(building.tanh$OwnerUser))/max(building.tanh$OwnerUser) - min(building.tanh$OwnerUser))) - 1
+
+building.tanh$InvestmentNNN <- (2 * ((building.tanh$InvestmentNNN - min(building.tanh$InvestmentNNN))/max(building.tanh$InvestmentNNN) - min(building.tanh$InvestmentNNN))) - 1
+
+building.tanh$Investment_or_Owner_User <- (2 * ((building.tanh$Investment_or_Owner_User - min(building.tanh$Investment_or_Owner_User))/max(building.tanh$Investment_or_Owner_User) - min(building.tanh$Investment_or_Owner_User))) - 1
+
+#remove the value with NaN values. I don't know why they are there, but I do not believe it has much predictive power, so dropping it is the easier choice. 
+
+building.tanh <- subset(building.tanh, select = -c(InvestmentNNN, Land, Multifamily))
+building.tanh
+```
+
+
+```{r}
+#Check for NA's
+sum(is.na(building.tanh))
+
+#Make training and validation set
+bld.training.tanh = sort(sample(nrow(building.tanh), nrow(building.tanh)*0.6))
+bld.train.tanh <- building.tanh[bld.training.tanh, ]
+bld.valid.tanh <- building.tanh[-bld.training.tanh, ]
+bld.train.tanh
+```
+
+
+```{r}
+#applying the tanh model to the training set
+set.seed(4)
+neun.bld.train2 <- neuralnet(`Average Building Score` ~ Price + SquareFeet + Retail + Investment + Tacoma + Puyallup + Office + Industrial + OwnerUser, data = bld.train.tanh, linear.output = T, hidden = c(4,1), act.fct = "tanh", rep = 4)
+
+# display train predictions
+predict.bld.train2 <- prediction(neun.bld.train2)
+predict.bld.train2
+
+#extracting data from array
+predict.score.bld.train2 <- predict.bld.train2$rep1[,10]
+predict.score.bld.train2
+
+#to add it to the dataset
+bld.train.tanh$Score.Predict <- predict.score.bld.train2
+
+bld.train.tanh
+
+# plot network
+plot(neun.bld.train2, rep = "best")
+```
+
+
+```{r}
+#denormalize predicted score
+
+bld.train.tanh$Score.Predict.UNNorm <- (bld.train.tanh$Score.Predict * 2) + 3
+bld.train.tanh
+
+#calculate RMSE for Validation Set
+bld.train.tanh.RMSE <- rmse(bld.train.tanh$`Average Building Score`, bld.train.tanh$Score.Predict)
+bld.train.tanh.RMSE
+
+#moving on, this tanh function isn't proving to be super useful. I think maybe it can get better, I got as low as .2 for the error rate but the RMSE still stands at a ~.6 which is not good.
+```
+```{r}
+#applying the tanh model to the training set
+set.seed(4)
+neun.bld.valid2 <- neuralnet(`Average Building Score` ~ Price + SquareFeet + Retail + Investment + Tacoma + Puyallup + Office + Industrial + OwnerUser, data = bld.valid.tanh, linear.output = T, hidden = c(4,1), act.fct = "tanh", rep = 4)
+
+# display train predictions
+predict.bld.valid2 <- prediction(neun.bld.valid2)
+predict.bld.valid2
+
+#extracting data from array
+predict.score.bld.valid2 <- predict.bld.valid2$rep1[,10]
+predict.score.bld.valid2
+
+#to add it to the dataset
+bld.valid.tanh$Score.Predict <- predict.score.bld.valid2
+
+bld.valid.tanh
+
+# plot network
+plot(neun.bld.valid2, rep = "best")
+```
+```{r}
+#denormalize predicted score
+
+bld.valid.tanh$Score.Predict.UNNorm <- (bld.valid.tanh$Score.Predict * 2) + 3
+bld.valid.tanh
+
+#calculate RMSE for Validation Set
+bld.valid.tanh.RMSE <- rmse(bld.valid.tanh$`Average Building Score`, bld.valid.tanh$Score.Predict)
+bld.valid.tanh.RMSE
+```
+
+
+```{r}
+#The chosen model to be repeated and made into an output.
+set.seed(3)
+bld.neun <- neuralnet(`Average Building Score` ~ Price + Land + SquareFeet + Tacoma + Industrial + Multifamily + Office + Investment + OwnerUser, data = building.scores, linear.output = T, hidden = c(5,1), act.fct = "logistic", rep = 10)
+
+#save the model
+setwd("D:/Templates/UW Stuff/Classes/MSBA/Classes/Q4 Models/Tuning/NuralNet")
+save(file="FinalBuildingNeunetModel",bld.neun)
+#This is to use for later use when we switch over to Final_NeuNet_Enrique.
+```
+
+
+```{r}
+# display predictions
+predict.bld <- prediction(bld.neun)
+predict.bld
+
+#extracting data from array
+predict.bld.score <- predict.bld$rep1[,10]
+predict.bld.score
+
+#to add it to the dataset
+building.scores$Score.Predict <- predict.bld.score
+
+building.scores
+
+# plot network
+plot(bld.neun, rep="best")
+```
+
+
+```{r}
+#denormalize predicted score
+building.scores$Score.Predict.UNNorm <- building.scores$Score.Predict * 5
+building.scores
+
+bld.RMSE <- rmse(building.scores$`Average Building Score`, building.scores$Score.Predict)
+bld.RMSE
+```
+
+
+```{r}
+#check for duplicates
+duplicated(bld.export$Price)
+
+#remove rows with duplicates
+bld.export <- bld.export[!duplicated(bld.export[ , "Price"]),]
+
+#add predicted scores to export csv
+bld.export$Score.Predict.Norm <- building.scores$Score.Predict.UNNorm
+
+bld.export
+
+setwd("D:/Templates/UW Stuff/Classes/MSBA/Classes/Q4 Models/Tuning/NuralNet")
+write.csv(bld.export, "D:/Templates/UW Stuff/Classes/MSBA/Classes/Q4 Models/Tuning/NuralNet\\NNTestBuildingScore.csv", row.names = FALSE)
+```
