@@ -1,0 +1,319 @@
+---
+title: "New_Data_NeuNet"
+author: "Enrique Otanez"
+date: "3/7/2021"
+output: word_document
+---
+
+```{r}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = normalizePath("D:/Templates/UW Stuff/Classes/MSBA/Classes/Q4 Models/Tuning/NuralNet"))
+```
+
+```{r}
+#make a folder named something that makes sense
+#file name example type_model_date.csv or building_model8_20210409.csv
+#output a csv to folder where python can pull it and put it into the database
+#you want only two columns the record "cs_id" and the predicted score
+#include a signifier building vs census (make it in the name)
+library(DBI)
+library(sqldf)
+library(tidyverse)
+library(neuralnet)
+library(Metrics)
+library(caret)
+library(config)
+library(datapackage.r)
+library(jsonlite)
+library(tibble)
+library(dplyr)
+```
+
+
+```{r}
+setwd("D:/Templates/UW Stuff/Classes/MSBA/Classes/Q4 Models")
+df <- read.csv("Config_File.csv")
+
+con <- DBI::dbConnect(odbc::odbc(),
+  driver = "PostgreSQL Unicode(x64)",
+  database = "TEST",
+  UID      = df$UID,
+  PWD      = df$PWD,
+  server = df$server,
+  port = 5432)
+```
+
+```{r}
+import.building.final <- dbGetQuery(con, 'SELECT
+    bld."CS_ID"
+    ,avg(bs."Score") "Average Building Score"
+    ,bld."Address_Line"
+    ,bld."City"
+    ,bld."Postal_Code"
+    ,bld."Property_Type"
+    ,bld."Year_Built"
+    ,bld."Price"
+    ,bld."SquareFeet"
+    ,round(cast(coalesce(bld."Price" / bld."SquareFeet",NULL) as numeric),0) "$ per sq ft"
+     ,bld."Sale_Type"
+     ,bg.bg_geo_id "Block Group ID"
+     ,avg(bgs.score) "Average Block Group Score"
+     ,max(case when dv.sid=\'pop\' then bgd.value Else 0 END) "Population"
+     ,max(case when dv.sid=\'pop_MF_3MS\' then bgd.value Else 0 END) "Population: 3 Miles"
+     ,max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) "Households: 3 Miles"
+    ,max(case when dv.sid=\'M_0_5\' then bgd.value Else 0 END)+max(case when dv.sid=\'F_0_5\' then bgd.value Else 0 END) "Kids under 5"
+     ,round(cast((max(case when dv.sid=\'M_0_5\' then bgd.value Else 0 END)+max(case when dv.sid=\'F_0_5"\' then bgd.value Else 0 END)) /
+        max(case when dv.sid=\'pop\' then bgd.value Else null END) as numeric),3) "Percent Kids under 5"
+    ,max(case when dv.sid=\'M_0_5_3MS\' then bgd.value Else 0 END)+max(case when dv.sid=\'F_0_5_3MS\' then bgd.value Else 0 END) "Kids under 5: 3 Miles"
+     ,round(cast((max(case when dv.sid=\'M_0_5_3MS\' then bgd.value Else 0 END)+max(case when dv.sid=\'F_0_5_3MS\' then bgd.value Else 0 END)) /
+        max(case when dv.sid=\'pop_MF_3MS\' then bgd.value Else null END) as numeric),3) "Percent Kids under 5: 3 Miles"
+    ,max(case when dv.sid=\'M_5_9\' then bgd.value Else 0 END)+max(case when dv.sid=\'F_5_9\' then bgd.value Else 0 END) "Kids 5 to 9"
+     ,round(cast((max(case when dv.sid=\'M_5_9\' then bgd.value Else 0 END)+max(case when dv.sid=\'F_5_9\' then bgd.value Else 0 END)) /
+        max(case when dv.sid=\'pop\' then bgd.value Else null END) as numeric),3) "Percent Kids 5 to 9"
+    ,max(case when dv.sid=\'M_5_9_3MS\' then bgd.value Else 0 END)+max(case when dv.sid=\'F_5_9_3MS\' then bgd.value Else 0 END) "Kids 5 to 9: 3 Miles"
+    ,round(cast((max(case when dv.sid=\'M_5_9_3MS\' then bgd.value Else 0 END)+max(case when dv.sid=\'F_5_9_3MS\' then bgd.value Else 0 END)) /
+         max(case when dv.sid=\'pop_MF_3MS\' then bgd.value Else null END) as numeric),3)  "Percent Kids 5 to 9: 3 Miles"
+    ,max(case when dv.sid=\'avg_age\' then bgd.value Else 0 END) "Average Age"
+    ,round(cast(sum(case when dv.sid in(\'hi_0_10_3MS\',\'hi_10_15_3MS\',\'hi_15_20_3MS\',\'hi_20_25_3MS\',\'hi_25_30_3MS\',\'hi_30_35_3MS\',\'hi_35_40_3MS\') then bgd.value  else 0 END) /
+      max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) as numeric),3) "Household income under 40K: 3 Mile"
+    ,round(cast(sum(case when dv.sid in(\'hi_40_45_3MS\',\'hi_45_50_3MS\') then bgd.value  else 0 END) /
+      max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) as numeric),3) "Household income 40K to 50K: 3 Mile"
+    ,round(cast(sum(case when dv.sid in(\'hi_50_60_3MS\') then bgd.value  else 0 END) /
+      max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) as numeric),3) "Household income 50K to 60K: 3 Mile"
+    ,round(cast(sum(case when dv.sid in(\'hi_60_75_3MS\') then bgd.value  else 0 END) /
+      max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) as numeric),3) "Household income 60K to 75K: 3 Mile"
+    ,round(cast(sum(case when dv.sid in(\'hi_75_100_3MS\') then bgd.value  else 0 END) /
+      max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) as numeric),3) "Household income 75K to 100K: 3 Mile"
+    ,round(cast(sum(case when dv.sid in(\'hi_100_125_3MS\') then bgd.value  else 0 END) /
+      max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) as numeric),3) "Household income 100K to 125K: 3 Mile"
+    ,round(cast(sum(case when dv.sid in(\'hi_125_150_3MS\') then bgd.value  else 0 END) /
+      max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) as numeric),3) "Household income 125K to 150K: 3 Mile"
+    ,round(cast(sum(case when dv.sid in(\'hi_150_200_3MS\') then bgd.value  else 0 END) /
+      max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) as numeric),3) "Household income 150K to 200K: 3 Mile"
+    ,round(cast(sum(case when dv.sid in(\'hi_200_999_3MS\') then bgd.value  else 0 END) /
+      max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) as numeric),3) "Household income 200K+: 3 Mile"
+from "Building" as bld
+left join "Block_Group" as bg on bg.bg_geo_id = bld.bg_geo_id
+left join "BG_Data" as bgd on bg.bg_geo_id = bgd.bg_geo_id
+inner join "Demo_Var" as dv on dv.full_variable_id=bgd.variable_id
+left join "BG_Score" as bgs on bg.bg_geo_id = bgs.bg_geo_id
+left join "Building_Score" as bs on bld."CS_ID" = bs.cs_id
+group by bld."CS_ID",bld."Address_Line",bld."City",bld."Postal_Code",bld."Property_Type",bld."Price",bld."Year_Built",bld."SquareFeet",bld."Sale_Type",bg.bg_geo_id
+having
+    max(case when dv.sid=\'pop\' then bgd.value Else 0 END) > 0
+    and max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) > 0')
+
+import.building.final
+```
+
+```{r}
+#We need to query the variables used for the score as well as the score from the DB
+
+building.scores.final <- sqldf('SELECT CS_ID, "Average Building Score", Address_Line, City, Postal_Code, Property_Type, Year_Built, Price, SquareFeet, "$ per sq ft", Sale_Type FROM "import.building" WHERE "Average Building Score" IS NULL')
+
+building.scores.final
+```
+
+```{r}
+#We need to make the dummy variables for the categorical variables
+building.scores.final$Tacoma <- building.scores$City == "Tacoma"
+building.scores.final$Puyallup <- building.scores$City == "Puyallup"
+building.scores.final$Land <- building.scores$Property_Type == "Land"
+building.scores.final$Multifamily <- building.scores$Property_Type == "Multifamily"
+building.scores.final$Industrial <- building.scores$Property_Type == "Industrial"
+building.scores.final$Office <- building.scores$Property_Type == "Office"
+building.scores.final$Retail <- building.scores$Property_Type == "Retail"
+building.scores.final$Investment <- building.scores$Sale_Type == "Investment"
+building.scores.final$OwnerUser <- building.scores$Sale_Type == "OwnerUser"
+building.scores.final$InvestmentNNN <- building.scores$Sale_Type == "InvestmentNNN"
+building.scores.final$Investment_or_Owner_User <- building.scores$Sale_Type == "Investment or Owner User"
+
+building.scores.final
+```
+```{r}
+#subset the data to remove NA'column of Scores
+length(building.scores.final)
+building.scores.final <- building.scores.final[,-2]
+building.scores.final
+```
+
+
+```{r}
+#Remove any and all NA's
+building.scores.final <- na.omit(building.scores.final)
+#Check for remaining NA's
+sum(is.na(building.scores.final))
+#View dataset
+building.scores.final
+```
+```{r}
+#This is to change from T/F to 0/1
+building.scores.final$Tacoma <- building.scores.final$Tacoma*1
+building.scores.final$Puyallup <- building.scores.final$Puyallup*1
+building.scores.final$Land <- building.scores.final$Land*1
+building.scores.final$Multifamily <- building.scores.final$Multifamily*1
+building.scores.final$Industrial <- building.scores.final$Industrial*1
+building.scores.final$Office <- building.scores.final$Office*1
+building.scores.final$Retail <- building.scores.final$Retail*1
+building.scores.final$Investment <- building.scores.final$Investment*1
+building.scores.final$OwnerUser <- building.scores.final$OwnerUser*1
+building.scores.final$InvestmentNNN <- building.scores.final$InvestmentNNN*1
+building.scores.final$Investment_or_Owner_User <- building.scores.final$Investment_or_Owner_User*1
+building.scores.final
+```
+
+```{r}
+#Now to normalize all numeric variables but not the score yet, we want to make a csv for exporting. 
+building.scores.final$Price <- (building.scores.final$Price - min(building.scores.final$Price))/(max(building.scores.final$Price) - min(building.scores.final$Price))
+
+building.scores.final$SquareFeet <- (building.scores.final$SquareFeet - min(building.scores.final$SquareFeet))/(max(building.scores.final$SquareFeet) - min(building.scores.final$SquareFeet))
+
+building.scores.final$`$ per sq ft` <- (building.scores.final$`$ per sq ft` - min(building.scores.final$`$ per sq ft`))/(max(building.scores.final$`$ per sq ft`) - min(building.scores.final$`$ per sq ft`))
+
+building.scores.final
+```
+```{r}
+#make the csv for exporting
+building.export <- building.scores.final
+building.export
+```
+
+
+```{r}
+#check for duplicates
+duplicated(building.scores.final$Price)
+
+#remove rows with duplicates
+building.scores.final <- building.scores.final[!duplicated(building.scores.final[ , "Price"]),]
+building.scores.final
+
+building.export <- building.export[!duplicated(building.export[ , "Price"]),]
+building.export
+```
+
+
+```{r}
+#load model
+load(file="FinalBuildingNeunetModel")
+
+building.predictions <- predict(bld.neun, building.scores.final, reps = 10, all.units = FALSE)
+
+building.predictions
+```
+
+
+```{r}
+#denormalize predicted score
+building.export$Score.Predict <- building.predictions * 5
+building.export
+
+write.csv(building.export, "D:/Templates/UW Stuff/Classes/MSBA/Classes/Q4 Models/Tuning/NuralNet\\FinalBuilding.csv", row.names = FALSE)
+```
+
+```{r}
+import.census.final <- dbGetQuery(con, 'select
+     bg.bg_geo_id "Block Group ID"
+     ,(select avg(bgs.score) from "BG_Score" as bgs where bgs.bg_geo_id=bg.bg_geo_id) "Average Block Group Score"
+     ,max(case when dv.sid=\'pop\' then bgd.value Else 0 END) "Population"
+     ,max(case when dv.sid=\'pop_MF_3MS\' then bgd.value Else 0 END) "Population: 3 Mile"
+     ,max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) "Households: 3 Mile"
+    ,max(case when dv.sid=\'M_0_5\' then bgd.value Else 0 END)+max(case when dv.sid=\'F_0_5\' then bgd.value Else 0 END) "Kids under 5"
+     ,round(cast((max(case when dv.sid=\'M_0_5\' then bgd.value Else 0 END)+max(case when dv.sid=\'F_0_5\' then bgd.value Else 0 END)) /
+        max(case when dv.sid=\'pop\' then bgd.value Else null END) as numeric),3) "Percent Kids under 5"
+    ,max(case when dv.sid=\'M_0_5_3MS\' then bgd.value Else 0 END)+max(case when dv.sid=\'F_0_5_3MS\' then bgd.value Else 0 END) "Kids under 5: 3 Mile"
+     ,round(cast((max(case when dv.sid=\'M_0_5_3MS\' then bgd.value Else 0 END)+max(case when dv.sid=\'F_0_5_3MS\' then bgd.value Else 0 END)) /
+        max(case when dv.sid=\'pop_MF_3MS\' then bgd.value Else null END) as numeric),3) "Percent Kids under 5: 3 Mile"
+    ,max(case when dv.sid=\'M_5_9\' then bgd.value Else 0 END)+max(case when dv.sid=\'F_5_9\' then bgd.value Else 0 END) "Kids 5 to 9"
+     ,round(cast((max(case when dv.sid=\'M_5_9\' then bgd.value Else 0 END)+max(case when dv.sid=\'F_5_9\' then bgd.value Else 0 END)) /
+        max(case when dv.sid=\'pop\' then bgd.value Else null END) as numeric),3) "Percent Kids 5 to 9"
+    ,max(case when dv.sid=\'M_5_9_3MS\' then bgd.value Else 0 END)+max(case when dv.sid=\'F_5_9_3MS\' then bgd.value Else 0 END) "Kids 5 to 9: 3 Mile"
+    ,round(cast((max(case when dv.sid=\'M_5_9_3MS\' then bgd.value Else 0 END)+max(case when dv.sid=\'F_5_9_3MS\' then bgd.value Else 0 END)) /
+         max(case when dv.sid=\'pop_MF_3MS\' then bgd.value Else null END) as numeric),3)  "Percent Kids 5 to 9: 3 Mile"
+    ,max(case when dv.sid=\'avg_age\' then bgd.value Else 0 END) "Average Age"
+    ,round(cast(sum(case when dv.sid in(\'hi_0_10_3MS\',\'hi_10_15_3MS\',\'hi_15_20_3MS\',\'hi_20_25_3MS\',\'hi_25_30_3MS\',\'hi_30_35_3MS\',\'hi_35_40_3MS\') then bgd.value  else 0 END) /
+      max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) as numeric),3) "Household income under 40K: 3 Mile"
+    ,round(cast(sum(case when dv.sid in(\'hi_40_45_3MS\',\'hi_45_50_3MS\') then bgd.value  else 0 END) /
+      max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) as numeric),3) "Household income 40K to 50K: 3 Mile"
+    ,round(cast(sum(case when dv.sid in(\'hi_50_60_3MS\') then bgd.value  else 0 END) /
+      max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) as numeric),3) "Household income 50K to 60K: 3 Mile"
+    ,round(cast(sum(case when dv.sid in(\'hi_60_75_3MS\') then bgd.value  else 0 END) /
+      max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) as numeric),3) "Household income 60K to 75K: 3 Mile"
+    ,round(cast(sum(case when dv.sid in(\'hi_75_100_3MS\') then bgd.value  else 0 END) /
+      max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) as numeric),3) "Household income 75K to 100K: 3 Mile"
+    ,round(cast(sum(case when dv.sid in(\'hi_100_125_3MS\') then bgd.value  else 0 END) /
+      max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) as numeric),3) "Household income 100K to 125K: 3 Mile"
+    ,round(cast(sum(case when dv.sid in(\'hi_125_150_3MS\') then bgd.value  else 0 END) /
+      max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) as numeric),3) "Household income 125K to 150K: 3 Mile"
+    ,round(cast(sum(case when dv.sid in(\'hi_150_200_3MS\') then bgd.value  else 0 END) /
+      max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) as numeric),3) "Household income 150K to 200K: 3 Mile"
+    ,round(cast(sum(case when dv.sid in(\'hi_200_999_3MS\') then bgd.value  else 0 END) /
+      max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) as numeric),3) "Household income 200K+: 3 Mile"
+from "Block_Group" as bg
+left join "BG_Data" as bgd on bg.bg_geo_id = bgd.bg_geo_id
+inner join "Demo_Var" as dv on dv.full_variable_id=bgd.variable_id
+group by bg.bg_geo_id
+having
+max(case when dv.sid=\'pop\' then bgd.value Else 0 END) > 0
+and max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END)>0')
+import.census.final
+```
+```{r}
+#We need to query the variables used for the score as well as the score from the DB
+
+census.scores.final <- sqldf('SELECT "Block Group ID" AS "Block.Group.ID", "Average Block Group Score" AS "Average.Block.Group.Score", Population, "Population: 3 Mile" AS "Population.3.Mile", "Households: 3 Mile" AS "Households.3.Mile", "Percent Kids under 5" AS "Percent.Kids.under.5", "Percent Kids under 5: 3 Mile" AS "Percent.Kids.under.5.3.Mile", "Percent Kids 5 to 9" AS "Percent.Kids.5.to.9", "Percent Kids 5 to 9: 3 Mile" AS "Percent.Kids.5.to.9.3 Mile", "Average Age" AS "Average.Age", "Household income under 40K: 3 Mile" AS "Household.income.under.40K.3Mile", "Household income 40K to 50K: 3 Mile" AS "Household.income.40K.to.50K.3.Mile", "Household income 50K to 60K: 3 Mile" AS "Household.income.50K.to.60K.3.Mile", "Household income 60K to 75K: 3 Mile" AS "Household.income.60K.to.75K.3.Mile", "Household income 75K to 100K: 3 Mile" AS "Household.income.75K.to.100K.3.Mile", "Household income 100K to 125K: 3 Mile" AS "Household.income.100:.125K.3.Mile", "Household income 125K to 150K: 3 Mile" AS "Household.income.125K.to.150K.3.Mile", "Household income 150K to 200K: 3 Mile" AS "Household.income.150K.to.200K.3.Mile", "Household income 200K+: 3 Mile"  AS "Household.income.200K+.3Mile"FROM "import.census" WHERE "Average Block Group Score" IS NULL')
+
+census.scores.final
+#this is to make an export of the final model output
+census.export.final <- census.scores.final
+```
+
+
+```{r}
+#subset the data to remove NA'column of Scores
+length(census.scores.final)
+census.scores.final <- census.scores.final[,-2]
+census.scores.final
+```
+
+
+```{r}
+#this is here in case the final model changes from tanh to logistic
+#min.max.norm <- function(x) {
+#  (x - min(x)) / (max(x) - min(x))
+#}
+
+#for (i in 2:length(census.scores.final)) {
+#  census.scores.final[i] <- min.max.norm(census.scores.final[i])
+#}
+
+#census.scores.final
+```
+```{r}
+#Set scale from -1 to 1
+tanh.norm <- function(x) {
+  (2 * (x - min(x)) / (max(x) - min(x))) - 1
+}
+
+for (i in 2:length(census.scores.final)) {
+  census.scores.final[i] <- tanh.norm(census.scores.final[i])
+}
+
+census.scores.final
+```
+
+```{r}
+load(file="FinalCensusNeunetModel")
+
+new.census.predict <- predict(census.neun, census.scores.final, rep = 10, all.units = FALSE)
+new.census.predict
+
+#denormalize
+final.census.predict <- (new.census.predict * 2) + 3
+final.census.predict
+
+census.export.final$Score <- final.census.predict
+census.export.final
+
+
+write.csv(census.export.final, "D:/Templates/UW Stuff/Classes/MSBA/Classes/Q4 Models/Tuning/NuralNet\\FinaCensus.csv", row.names = FALSE)
+```
