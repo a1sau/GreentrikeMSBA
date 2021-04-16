@@ -1,0 +1,302 @@
+---
+title: "Building_KNN_Model"
+author: "Benjamin Pope"
+date: "3/5/2021"
+output: word_document
+---
+
+```{r}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = normalizePath("D:/Templates/UW Stuff/Classes/MSBA/Classes/Q4 Models/Tuning/kNN"))
+```
+
+
+```{r}
+library(DBI)
+library(odbc)
+library(data.table)
+library(caret)
+library(FNN)
+library(class)
+library(psych)
+library(sqldf)
+```
+
+```{r}
+setwd("D:/Templates/UW Stuff/Classes/MSBA/Classes/Q4 Models")
+df <- read.csv("Config_File.csv")
+
+con <- DBI::dbConnect(odbc::odbc(),
+  driver = "PostgreSQL Unicode(x64)",
+  database = "TEST",
+  UID      = df$UID,
+  PWD      = df$PWD,
+  server = df$server,
+  port = 5432)
+```
+
+```{r}
+import.building <- dbGetQuery(con, 'SELECT
+    bld."CS_ID"
+    ,avg(bs."Score") "Average Building Score"
+    ,bld."Address_Line"
+    ,bld."City"
+    ,bld."Postal_Code"
+    ,bld."Property_Type"
+    ,bld."Year_Built"
+    ,bld."Price"
+    ,bld."SquareFeet"
+    ,bld."Building_Class"
+    ,round(cast(coalesce(bld."Price" / bld."SquareFeet",NULL) as numeric),0) "$ per sq ft"
+     ,bld."Sale_Type"
+     ,bg.bg_geo_id "Block Group ID"
+     ,avg(bgs.score) "Average Block Group Score"
+     ,max(case when dv.sid=\'pop\' then bgd.value Else 0 END) "Population"
+     ,max(case when dv.sid=\'pop_MF_3MS\' then bgd.value Else 0 END) "Population: 3 Miles"
+     ,max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) "Households: 3 Miles"
+    ,max(case when dv.sid=\'M_0_5\' then bgd.value Else 0 END)+max(case when dv.sid=\'F_0_5\' then bgd.value Else 0 END) "Kids under 5"
+     ,round(cast((max(case when dv.sid=\'M_0_5\' then bgd.value Else 0 END)+max(case when dv.sid=\'F_0_5"\' then bgd.value Else 0 END)) /
+        max(case when dv.sid=\'pop\' then bgd.value Else null END) as numeric),3) "Percent Kids under 5"
+    ,max(case when dv.sid=\'M_0_5_3MS\' then bgd.value Else 0 END)+max(case when dv.sid=\'F_0_5_3MS\' then bgd.value Else 0 END) "Kids under 5: 3 Miles"
+     ,round(cast((max(case when dv.sid=\'M_0_5_3MS\' then bgd.value Else 0 END)+max(case when dv.sid=\'F_0_5_3MS\' then bgd.value Else 0 END)) /
+        max(case when dv.sid=\'pop_MF_3MS\' then bgd.value Else null END) as numeric),3) "Percent Kids under 5: 3 Miles"
+    ,max(case when dv.sid=\'M_5_9\' then bgd.value Else 0 END)+max(case when dv.sid=\'F_5_9\' then bgd.value Else 0 END) "Kids 5 to 9"
+     ,round(cast((max(case when dv.sid=\'M_5_9\' then bgd.value Else 0 END)+max(case when dv.sid=\'F_5_9\' then bgd.value Else 0 END)) /
+        max(case when dv.sid=\'pop\' then bgd.value Else null END) as numeric),3) "Percent Kids 5 to 9"
+    ,max(case when dv.sid=\'M_5_9_3MS\' then bgd.value Else 0 END)+max(case when dv.sid=\'F_5_9_3MS\' then bgd.value Else 0 END) "Kids 5 to 9: 3 Miles"
+    ,round(cast((max(case when dv.sid=\'M_5_9_3MS\' then bgd.value Else 0 END)+max(case when dv.sid=\'F_5_9_3MS\' then bgd.value Else 0 END)) /
+         max(case when dv.sid=\'pop_MF_3MS\' then bgd.value Else null END) as numeric),3)  "Percent Kids 5 to 9: 3 Miles"
+    ,max(case when dv.sid=\'avg_age\' then bgd.value Else 0 END) "Average Age"
+    ,round(cast(sum(case when dv.sid in(\'hi_0_10_3MS\',\'hi_10_15_3MS\',\'hi_15_20_3MS\',\'hi_20_25_3MS\',\'hi_25_30_3MS\',\'hi_30_35_3MS\',\'hi_35_40_3MS\') then bgd.value  else 0 END) /
+      max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) as numeric),3) "Household income under 40K: 3 Mile"
+    ,round(cast(sum(case when dv.sid in(\'hi_40_45_3MS\',\'hi_45_50_3MS\') then bgd.value  else 0 END) /
+      max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) as numeric),3) "Household income 40K to 50K: 3 Mile"
+    ,round(cast(sum(case when dv.sid in(\'hi_50_60_3MS\') then bgd.value  else 0 END) /
+      max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) as numeric),3) "Household income 50K to 60K: 3 Mile"
+    ,round(cast(sum(case when dv.sid in(\'hi_60_75_3MS\') then bgd.value  else 0 END) /
+      max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) as numeric),3) "Household income 60K to 75K: 3 Mile"
+    ,round(cast(sum(case when dv.sid in(\'hi_75_100_3MS\') then bgd.value  else 0 END) /
+      max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) as numeric),3) "Household income 75K to 100K: 3 Mile"
+    ,round(cast(sum(case when dv.sid in(\'hi_100_125_3MS\') then bgd.value  else 0 END) /
+      max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) as numeric),3) "Household income 100K to 125K: 3 Mile"
+    ,round(cast(sum(case when dv.sid in(\'hi_125_150_3MS\') then bgd.value  else 0 END) /
+      max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) as numeric),3) "Household income 125K to 150K: 3 Mile"
+    ,round(cast(sum(case when dv.sid in(\'hi_150_200_3MS\') then bgd.value  else 0 END) /
+      max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) as numeric),3) "Household income 150K to 200K: 3 Mile"
+    ,round(cast(sum(case when dv.sid in(\'hi_200_999_3MS\') then bgd.value  else 0 END) /
+      max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) as numeric),3) "Household income 200K+: 3 Mile"
+from "Building" as bld
+left join "Block_Group" as bg on bg.bg_geo_id = bld.bg_geo_id
+left join "BG_Data" as bgd on bg.bg_geo_id = bgd.bg_geo_id
+inner join "Demo_Var" as dv on dv.full_variable_id=bgd.variable_id
+left join "BG_Score" as bgs on bg.bg_geo_id = bgs.bg_geo_id
+left join "Building_Score" as bs on bld."CS_ID" = bs.cs_id
+group by bld."CS_ID",bld."Address_Line",bld."City",bld."Postal_Code",bld."Property_Type",bld."Price",bld."Year_Built",bld."SquareFeet",bld."Sale_Type",bg.bg_geo_id
+having
+    max(case when dv.sid=\'pop\' then bgd.value Else 0 END) > 0
+    and max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) > 0')
+
+import.building
+```
+
+```{r}
+#We need to query the variables used for the score as well as the score from the DB
+
+building.scores <- sqldf('SELECT CS_ID, "Average Building Score", Address_Line, City, Postal_Code, Property_Type, Year_Built, Price, SquareFeet, "$ per sq ft", Sale_Type, Building_Class FROM "import.building" WHERE "Average Building Score" IS NOT NULL')
+
+building.scores
+```
+
+```{r}
+#Look at and clean data
+
+building.scores$SquareFeet <- (ifelse(is.na(building.scores$SquareFeet),0,building.scores$SquareFeet))
+building.scores$Price <- ifelse(is.na(building.scores$Price),100000000,building.scores$Price)
+building.scores$`Average Building Score` <- as.factor(building.scores$`Average Building Score`)
+
+building.scores
+
+building.scores$Sale_Type[building.scores$Sale_Type =="OwnerUser"] <- "Owner User"
+building.scores$Sale_Type[building.scores$Sale_Type =="Investment or Owner User"] <- "Both"
+building.scores$Sale_Type[building.scores$Sale_Type =="InvestmentorOwnerUser"] <- "Both"
+
+building.scores
+
+build.class <- as.data.frame(dummy.code(building.scores$Building_Class))
+sale_type <- as.data.frame(dummy.code(building.scores$Sale_Type))
+
+#remove original and replace with dummy var.
+str(building.scores)
+colnames(building.scores)
+building.scores <- building.scores[,-c(3:7)]
+building.scores
+
+building.scores <- cbind(building.scores, build.class, sale_type)
+building.scores
+```
+
+
+```{r}
+building.scores$CS_ID <- as.factor(building.scores$CS_ID)
+
+str(building.scores)
+
+building.scores <- na.omit(building.scores)
+
+#building.scores$Building_Class <- as.factor(building.scores$Building_Class)
+#building.scores$Building_Class <- as.numeric(building.scores$Building_Class)
+sum(is.na(building.scores))
+building.scores <- building.scores[,-10]
+building.scores <- building.scores[,-c(6:7)]
+building.scores
+```
+```{r}
+# Normalize after split.
+min.max.norm <- function(x) {
+  (x - min(x)) / (max(x) - min(x))
+}
+
+building.scores$Price <- min.max.norm(building.scores$Price)
+building.scores$SquareFeet <- min.max.norm(building.scores$SquareFeet)
+building.scores$`$ per sq ft` <- min.max.norm(building.scores$`$ per sq ft`)
+
+building.scores
+```
+
+```{r}
+#Split and normalize data
+train.index <- sample(row.names(building.scores),0.7*dim(building.scores)[1])
+valid.index <- setdiff(row.names(building.scores), train.index)
+
+train.df <- building.scores[train.index,]
+valid.df <- building.scores[valid.index,]
+
+train.df
+```
+
+
+```{r}
+str(building.scores)
+#run KNN tests to find best k
+k.num = nrow(train.df)
+build.accuracy.df <- data.frame(k = seq(1, k.num, 1), accuracy = rep(0, k.num))
+
+
+# compute knn for different k on validation.
+for(i in 1:k.num) {
+  knn.pred<- class::knn(train = train.df[,3:12], test = valid.df[,3:12], cl = train.df[,2],k=i)
+  
+  build.accuracy.df[i,2] <- confusionMatrix(knn.pred, valid.df$`Average Building Score`)$overall[1]
+}
+max(build.accuracy.df)
+build.accuracy.df
+
+knn.model<- class::knn(train = train.df[,3:12], test = valid.df[,3:12], cl = train.df[,2],k=7)
+confusionMatrix(as.factor(knn.model), as.factor(valid.df$`Average Building Score`))
+```
+
+```{r}
+#Normalize and prepare entire scored set 
+build.norm.scores <- rbind(train.norm.df, valid.norm.df)
+build.norm.scores
+```
+
+```{r}
+#We need to query the variables used for the score as well as the score from the DB
+
+new.building.scores <- sqldf('SELECT CS_ID, "Average Building Score", Address_Line, City, Postal_Code, Property_Type, Year_Built, Price, SquareFeet, "$ per sq ft", Sale_Type, Building_Class FROM "import.building" WHERE "Average Building Score" IS NULL')
+
+new.building.scores
+```
+
+```{r}
+#Normalize and prepare new.records
+
+#square feet to 0, dummy var on sale_type, property_type and Build_class
+# set Sale_type to three categories
+# Set long property_type office
+
+
+new.building.scores$SquareFeet <- (ifelse(is.na(new.building.scores$SquareFeet),0,new.building.scores$SquareFeet))
+new.building.scores$`$ per sq ft` <- (ifelse(is.na(new.building.scores$`$ per sq ft`),0,new.building.scores$`$ per sq ft`))
+new.building.scores$Price  <- ifelse(is.na(new.building.scores$Price),100000000,new.building.scores$Price)
+
+new.building.scores
+
+new.building.scores$Sale_Type[new.building.scores$Sale_Type =="OwnerUser"] <- "Owner User"
+new.building.scores$Sale_Type[new.building.scores$Sale_Type =="Investment or Owner User"] <- "Both"
+new.building.scores$Sale_Type[new.building.scores$Sale_Type =="InvestmentorOwnerUser"] <- "Both"
+
+new.building.scores
+
+build.class.new <- as.data.frame(dummy.code(new.building.scores$Building_Class))
+sale.type.new <- as.data.frame(dummy.code(new.building.scores$Sale_Type))
+
+#remove original and replace with dummy var.
+
+new.building.scores
+
+new.building.scores <- new.building.scores[,-c(3:7)]
+new.building.scores <- cbind(new.building.scores, build_class.new,sale_type.new)
+
+new.building.scores
+new.building.scores <- new.building.scores[,-c(6:7)]
+new.building.scores <- new.building.scores[,-6]
+new.building.scores <- new.building.scores[,-2]
+new.building.scores
+```
+```{r}
+# Normalize after split.
+min.max.norm <- function(x) {
+  (x - min(x)) / (max(x) - min(x))
+}
+
+new.building.scores$Price <- min.max.norm(new.building.scores$Price)
+new.building.scores$SquareFeet <- min.max.norm(new.building.scores$SquareFeet)
+new.building.scores$`$ per sq ft` <- min.max.norm(new.building.scores$`$ per sq ft`)
+
+new.building.scores
+```
+
+
+```{r}
+new.buildings.norm <- new.building.scores
+new.buildings.norm
+new.buildings.norm[,3:4] <- predict(norm.values, new.building.scores[3:4])
+
+new.buildings.norm
+first <- build.norm.scores[,c(1,2,3,4,5,8,7,6)]
+first$A <- 0 
+second <-build.norm.scores[,c(9,11,10,12)]
+build.norm.scores <- cbind(first, second)
+build.norm.scores
+```
+
+```{r}
+new.building.scores <- na.omit(new.building.scores)
+new.building.scores
+
+new.building.scores$`Average Building Score` <- 0
+new.building.scores$A <- 0
+new.building.scores$InvestmentNNN <- 0
+new.building.scores
+
+#Run KNN on new records
+Model_id <- "Build_KNN_v.3"
+
+knn.pred.new<- class::knn(train = build.norm.scores[,3:12], test = new.building.scores[,3:12], cl = build.norm.scores[,2],k=7)
+
+summary(knn.pred.new)
+
+```
+
+```{r}
+outscore <- as.data.frame(knn.pred.new)
+output.csv <- cbind(new.building.scores$CS_ID, Model_id, outscore, date())
+setnames(output.csv, (c( "cs_id", "model_id", "score", "date_calculated")))
+
+write.csv(output.csv,"D:/Templates/UW Stuff/Classes/MSBA/Classes/Q4 Models/Tuning/kNN\\Building_KNN_v.3_output.csv",row.names = FALSE)
+
+```
+
+

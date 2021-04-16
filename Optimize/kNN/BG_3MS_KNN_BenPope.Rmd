@@ -1,0 +1,147 @@
+---
+title: "BG_3MS_KNN"
+author: "Benjamin Pope"
+date: "3/4/2021"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(DBI)
+library(odbc)
+library(data.table)
+library(caret)
+library(FNN)
+library(class)
+library(psych)
+```
+
+```{r}
+# Connect to database
+library(DBI)
+
+con <- DBI::dbConnect(odbc::odbc(),
+  driver = "PostgreSQL Unicode(x64)",
+  database = "TEST",
+  UID      ='eotanez',
+  PWD      = 's4I8$cPPRX5x',
+  server = "greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com",
+  port = 5432)
+```
+
+```{r}
+#Get list of building that have scores for them 
+
+bg.score.3ms.raw <- dbGetQuery(con,'SELECT BGD.bg_geo_id, BGD.variable_id, BGD.Value,BGS.score
+                                FROM "BG_Data" BGD
+                                RIGHT JOIN "BG_Score" BGS ON BGS.bg_geo_id = BGD.bg_geo_id
+                                JOIN "Block_Group" BG on BGD.bg_geo_id = BG.bg_geo_id
+                                WHERE variable_id LIKE \'%_3MS\';')
+bg.new.records.3ms <- dbGetQuery(con,'SELECT BGD.bg_geo_id, BGD.variable_id, BGD.Value
+                                      FROM "BG_Data" BGD
+                                               LEFT JOIN "BG_Score" BGS on BGD.bg_geo_id = BGS.bg_geo_id
+                                               JOIN "Block_Group" BG on BGD.bg_geo_id = BG.bg_geo_id
+                                      WHERE BGS.bg_geo_id IS NULL
+                                      AND variable_id LIKE \'%_3MS\';')
+```
+
+```{r}
+# 3 Mile sum 
+bg.score.3ms <- reshape2::dcast(bg.score.3ms.raw, bg_geo_id + score ~ variable_id, fun.aggregate = mean)
+# bg.score.3ms$score <- (as.factor(bg.score.3ms$score))
+bg.score.3ms$score <- (as.integer(bg.score.3ms$score))
+#bg.score.3ms$city_short <- as.factor(bg.score.3ms$city_short)
+
+```
+
+```{r}
+
+#code dummy variables
+#### This left out untill more records are scored.  when coding dummy variables need entire set of dummy variables. \
+#city_short <- as.data.frame(dummy.code(bg.score.3ms$city_short))
+#bg.score.3ms <- cbind(bg.score.3ms, city_short)
+
+```
+
+```{r}
+train.norm.df
+```
+
+```{r}
+
+train_index <- sample(row.names(bg.score.3ms),0.6*dim(bg.score.3ms)[1])
+valid_index <- setdiff(row.names(bg.score.3ms), train_index)
+
+train.df <- bg.score.3ms[train_index,]
+valid.df <- bg.score.3ms[valid_index,]
+# Normalize after split.
+# Just run preprocess on training data to get training mean and SD for normalization
+
+norm.values <- preProcess(train.df[,3:26], method = c("center","scale"))
+# Create normalized df first so you can omit the correct columns
+train.norm.df <- train.df
+valid.norm.df <- valid.df
+#Insert normalized data.  Notice how you are essentially predicting the Standardization since we have the mean and SD captured already.  
+train.norm.df[, 3:26] <- predict(norm.values, train.df[,3:26])
+valid.norm.df[, 3:26] <- predict(norm.values, valid.df[,3:26])
+
+
+k.num <-nrow(train.df)
+bg.3ms.rmse.df <- data.frame(k = seq(1, k.num, 1), RMSE_value = rep(0, k.num))
+# compute knn for different k on validation.
+
+for(i in 1:k.num) {
+  knn.pred<- class::knn(train = train.norm.df[,3:26], test = valid.norm.df[,3:26], cl = train.norm.df[,2],k=i)
+  
+  bg.3ms.rmse.df[i, 2] <- RMSE(as.numeric(as.character(knn.pred)), valid.norm.df[,2])
+}
+
+min(bg.3ms.rmse.df)
+bg.3ms.rmse.df
+
+### Looks like k = is the highest consistency 
+knn.model <- class::knn(train = train.norm.df[,3:26], test = valid.norm.df[,3:26], cl = train.norm.df[,2],k =8)
+confusionMatrix(as.factor(knn.model), as.factor(valid.norm.df$score))
+
+RMSE(as.numeric(knn.model), valid.norm.df[,2])
+
+```
+
+```{r}
+# Predict new records for 
+
+#Set test name
+model_id ="3MS_KNN_v.3"
+
+##Normalize entire scored dataset
+bg.score.3ms.norm <- bg.score.3ms
+bg.score.3ms.norm[,3:26] <- predict(norm.values, bg.score.3ms[,3:26])
+
+#Unmelt new records
+bg.new.records.3ms <- reshape2::dcast(bg.new.records.3ms, bg_geo_id ~ variable_id, fun.aggregate = mean)
+head(bg.new.records.3ms)
+
+#Normalize new records 
+bg.new.records.3ms.norm <- bg.new.records.3ms
+bg.new.records.3ms.norm[,-1] <- predict(norm.values, bg.new.records.3ms[,-1])
+
+knn.model <- class::knn(train = train.norm.df[,3:26], test = valid.norm.df[,3:26], cl = train.norm.df[,2],k =4)
+knn.pred.new <- class::knn(train = bg.score.3ms.norm[,3:26], test = bg.new.records.3ms.norm[,2:25], cl = bg.score.3ms.norm[,2] ,k=8)
+summary(knn.pred.new)
+
+```
+
+```{r}
+### Set up output file
+
+outscore <- as.data.frame(knn.pred.new)
+output.csv <- cbind(model_id, bg.new.records.3ms.norm$bg_geo_id, outscore, date())
+setnames(output.csv, (c("model_id", "bg_geo_id", "score", "date_obtained")))
+
+write.csv(output.csv,"C:/Users/Benjamin/Documents/UWTacoma/MSBA/Aplied Project with Greentrike/KNN MODELS\\bg_KNN_output_v.3.csv",row.names = FALSE)
+```
+
