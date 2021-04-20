@@ -13,6 +13,7 @@ from combine_var import getConn
 import imaplib
 from email.header import decode_header
 import os
+import shutil
 from datetime import datetime
 import re
 import pandas as pd
@@ -159,14 +160,24 @@ def check_email(email,password,conn):
 
 
 def update_user_scores(conn,inbox_folder,archive_folder):
-    if inbox_folder[0]!="/":
+    if not inbox_folder:
+        print("No inbox folder specified.")
+        return None
+    if not archive_folder:
+        print("No archive folder specified")
+        return None
+    if inbox_folder[0] != "/":
         all_files=os.listdir(os.getcwd()+"/"+inbox_folder)
     else:
         all_files=os.listdir(inbox_folder)
+    if archive_folder[0] != "/":
+        archive_folder=os.path.join(os.getcwd(),archive_folder)
+    if not(os.path.isdir(archive_folder)):
+        print("Archive folder doesn't exist:",archive_folder)
     for filename in all_files:
         print("Loading:",filename)
         filepath=os.path.join(os.getcwd(),inbox_folder, filename)
-        xl_file = openpyxl.load_workbook(r'C:\output\attachment\Building_2_20210411_101451.xlsx',read_only=True,data_only=True)
+        archivepath = os.path.join(archive_folder, filename)
         type, uid = parse_file(filename)
         if type and uid:
             if type=="Building":
@@ -200,6 +211,8 @@ def update_user_scores(conn,inbox_folder,archive_folder):
                         print("Census ETL Fail:",e)
                         continue
                 pass
+        print("Archiving file:",filename)
+        shutil.move(filepath,archivepath)
     return True
 
 
