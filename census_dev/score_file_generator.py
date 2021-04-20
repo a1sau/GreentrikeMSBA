@@ -118,7 +118,7 @@ def gen_excel(df_var,filename):
     worksheet.set_column(1,prop_count,20)  #Set column A width
     for colnam in df_var.columns:
         xrow+=1
-        if colnam=="-":    #treat "-" as a blank row
+        if colnam[0]=="-":    #treat "-" as a blank row
             continue
         else:
             worksheet.write(xrow,0,colnam,cell_bold)
@@ -231,12 +231,13 @@ if __name__ == '__main__':
             print("Working directory:",os.getcwd())
         else:
             print("")
-    uid = 3
+    uid = 2
     file=control_building(conn,uid,10)
     to_email = get_user_email(conn,uid)
     if file:
         print("Sending email:",to_email,file)
         em.create_email(to_email,email,password,file)
+    conn.close()
     # xlsx_test('test.xlsx')
 
 
