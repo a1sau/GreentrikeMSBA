@@ -1,106 +1,323 @@
 # https://realpython.com/python-send-email/
 
-import configparser as cp
 import smtplib
 import ssl
 import sys
 import email as em
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email import encoders
 import reverse_geocoder2 as rg2
+from combine_var import getConn
 import imaplib
 from email.header import decode_header
 import os
+import shutil
+from datetime import datetime
+import re
+import pandas as pd
+import openpyxl
 
 
-
-def create_email(email,password):
+def create_email(to_email,email,password,attachment_name=None):
     port = 465  # For SSL
-
-    # Create a secure SSL context
+    datestr=datetime.now().strftime('%Y/%m/%d')
+    if attachment_name:
+        file = attachment_name
+        attachment = open(attachment_name,'rb')
+        obj = MIMEBase('application','octet-stream')
+        obj.set_payload(attachment.read())
+        encoders.encode_base64(obj)
+        obj.add_header('Content-Disposition',"attachment; filename= "+file)
+        # Create a secure SSL context
+    else:
+        return False
     context = ssl.create_default_context()
-
     with smtplib.SMTP_SSL("smtp.gmail.com", port, context=context) as server:
         pass
         server.login(email, password)
         message = MIMEMultipart("alternative")
-        message["Subject"] = "multipart test"
+        message["Subject"] = "Building Score File "+datestr
         message["From"] = email
-        message["To"] = email
+        message["To"] = to_email
         text = """\
         Hi,
-        How are you?
+        Here is a score file for you to review. Save the file and fill in the scores.
+        Once you are done, save the file with the same name and send it back to: {}
         This is a test email from the MSBA A1 Sauce as plain text
-        """
+        """.format(email)
         html = """\
         <html>
           <body>
             <p>Hi,<br>
-               How are you?<br>
-               This is a test email from the MSBA A1 Sauce as html<br>
+            Here is a score file for you to review. Save the file and fill in the scores.<br>
+            Once you are done, save the file with the same name and send it back to: {}<br>
             </p>
           </body>
         </html>
-        """
+        """.format(email)
         part1 = MIMEText(text, "plain")
         part2 = MIMEText(html, "html")
         message.attach(part1)
         message.attach(part2)
-        server.sendmail(email, email, message.as_string())
+        if obj:
+            message.attach(obj)
+        server.sendmail(email, to_email, message.as_string())
+    return True
+
+
+def parse_uid(data):
+    pattern_uid = re.compile('\d+ \(UID (?P<uid>\d+)\)')   #regular expression for message UID
+    match = pattern_uid.match(data)
+    return match.group('uid')
+
+
+def parse_file(filename):
+    re_pat = re.compile('(?P<type>^Building|^Census)_(?P<uid>\\d+)_')
+    match = re_pat.match(filename)
+    if not match:
+        return None, None
+    type = match.group('type')
+    uid = match.group('uid')
+    return type, uid
+
+
+def check_email(email,password,conn):
+    new_scores=False  #flag if new excel files are downloaded
     imap = imaplib.IMAP4_SSL("imap.gmail.com")
     imap.login(email, password)
     status, messages = imap.select("INBOX")
     messages = int(messages[0])
-    print(messages)
-
-    for i in range(messages, messages-3, -1):
+    print("Reviewing", messages, "messages")
+    for i in range(messages, 0,-1):  #gmail ids start at 1
+        print("Msg:",i)
         # fetch the email message by ID
+        attachmentLst = []
         res, msg = imap.fetch(str(i), "(RFC822)")
         for response in msg:
             if isinstance(response, tuple):
                 # parse a bytes email into a message object
                 msg = em.message_from_bytes(response[1])
                 # decode the email subject
-                subject, encoding = decode_header(msg["Subject"])[0]
+                try:
+                    subject, encoding = decode_header(msg["Subject"])[0]
+                except Exception as e:
+                    print(e)
+                    subject = "(No Subject)"
+                    encoding = None
                 if isinstance(subject, bytes):
                     # if it's a bytes, decode to str
                     subject = subject.decode(encoding)
                 # decode email sender
-                From, encoding = decode_header(msg.get("From"))[0]
-                if isinstance(From, bytes):
-                    From = From.decode(encoding)
+                from_email, encoding = decode_header(msg.get("From"))[0]
+                if isinstance(from_email, bytes):
+                    from_email = from_email.decode(encoding)
                 print("Subject:", subject)
-                print("From:", From)
-            if msg.is_multipart():
+                print("From:", from_email)
+                print(msg.is_multipart())
+            if msg.is_multipart() and (from_email.lower() != email.lower()):  #Don't download excel that are CCed from main account
                 # iterate over email parts
+                part_cnt=0
                 for part in msg.walk():
                     # extract content type of email
                     content_type = part.get_content_type()
                     content_disposition = str(part.get("Content-Disposition"))
-                    try:
-                        # get the email body
-                        body = part.get_payload(decode=True).decode()
-                        print("BODY:",body)
-                    except:
-                        if content_type == "text/plain" and "attachment" not in content_disposition:
-                            # print text/plain emails and skip attachments
-                            print("BODY:",body)
-                        elif "attachment" in content_disposition:
-                            pass
-                            # download attachment
-                            filename = part.get_filename()
-                            if filename:
+                    print("Part",part_cnt,attachmentLst,content_type,content_disposition)
+                    part_cnt+=1
+                    if "attachment" in content_disposition:
+                        # download attachment
+                        filename = part.get_filename()
+                        if filename[-5:] == ".xlsx":
+                            if filename not in attachmentLst:
+                                print("Downloading attachment:",filename)
                                 folder_name = "attachment"
                                 if not os.path.isdir(folder_name):
-                                    # make a folder for this email (named after the subject)
                                     os.mkdir(folder_name)
                                 filepath = os.path.join(folder_name, filename)
                                 # download attachment and save it
                                 open(filepath, "wb").write(part.get_payload(decode=True))
+                                attachmentLst.append(filename)
+                                new_scores=True
+                            else:
+                                print("Skip:",filename)
+                        else:  #Some other content type that we don't care about
+                            pass
+        #Once message is reviewed, move out of inbox and put into reviewed
+        resp, data = imap.fetch(str(i), "(UID)")
+        if data[0] is not None:
+            if isinstance(data[0],bytes):
+                msg_uid = parse_uid(str(em.message_from_bytes(data[0])).strip())
+            else:
+                msg_uid = parse_uid(str(data[0]).strip())
+                print(data[0])
+            if msg_uid:
+                result = imap.uid('MOVE', msg_uid, 'Reviewed')
+                print("Result of move:",str(i),"UID",msg_uid,result[0])
+            else:
+                print("UID not found",subject)
+    return new_scores
 
 
+def update_user_scores(conn,inbox_folder,archive_folder):
+    if not inbox_folder:
+        print("No inbox folder specified.")
+        return None
+    if not archive_folder:
+        print("No archive folder specified")
+        return None
+    if inbox_folder[0] != "/":
+        all_files=os.listdir(os.getcwd()+"/"+inbox_folder)
+    else:
+        all_files=os.listdir(inbox_folder)
+    if archive_folder[0] != "/":
+        archive_folder=os.path.join(os.getcwd(),archive_folder)
+    if not(os.path.isdir(archive_folder)):
+        print("Archive folder doesn't exist:",archive_folder)
+    for filename in all_files:
+        print("Loading:",filename)
+        filepath=os.path.join(os.getcwd(),inbox_folder, filename)
+        archivepath = os.path.join(archive_folder, filename)
+        type, uid = parse_file(filename)
+        if type and uid:
+            if type=="Building":
+                try:
+                    xl_file = openpyxl.load_workbook(filepath,read_only=True,data_only=True)
+                    sheets=xl_file.sheetnames
+                    xl_file.close()
+                except Exception as e:
+                    print("File {} couldn't be opened. Error: {}".format(filepath, e))
+                    continue
+                for sheetname in sheets:
+                    print("Sheet:",sheetname)
+                    try:
+                        df=pd.read_excel(filepath,sheet_name=sheetname,header=None,index_col=0)
+                        print(df.index)
+                        if ('CS_ID' in df.index) & ('Building Score' in df.index):
+                            etl_building_score(conn,df,uid)
+                        if ('Block Group ID' in df.index) & ('Block Group Score' in df.index):
+                            etl_census_score(conn,df,uid)
+                    except Exception as e:
+                        print("Building ETL Fail:",e)
+                        continue
+            else:  #Census
+                for sheetname in sheets:
+                    print("Sheet:",sheetname)
+                    try:
+                        df=pd.read_excel(filepath,sheet_name=sheetname,header=None,index_col=0)
+                        if ('Block Group ID' in df.index) & ('Block Group Score' in df.index):
+                            etl_census_score(conn,df,uid)
+                    except Exception as e:
+                        print("Census ETL Fail:",e)
+                        continue
+                pass
+        print("Archiving file:",filename)
+        shutil.move(filepath,archivepath)
+    return True
 
-if __name__ == '__main__':
+
+def etl_building_score(conn,df,uid):
+    if conn is None:
+        return False
+    cur = conn.cursor()
+    sql_command = 'truncate "ETL_Building_Score";'  #clear out ETL data
+    cur.execute(sql_command)
+    conn.commit()
+
+    dft=df.loc[['CS_ID','Building Score']].copy()
+    dft=dft.transpose()
+    print(dft)
+    # print(df.loc[['CS_ID','Building Score']])
+    today_date=datetime.date
+    for row in dft.itertuples(index=False):
+        cs_id=str(row[0])
+        score=validate_score(row[1])
+        print("read",cs_id,score)
+        if cs_id and score and uid:
+            sql_command='insert into "ETL_Building_Score" (cs_id,score,uid,date) values (\'{}\',\'{}\',\'{}\',NOW()::date);'.format(cs_id,score,uid)
+            print(sql_command)
+            cur.execute(sql_command)
+
+        else:
+            continue
+    conn.commit()
+    print("Move ETL Building Score into live table")
+    building_score_etl_to_live(conn,cur)
+    return True
+
+
+def etl_census_score(conn,df,uid):
+    if conn is None:
+        return False
+    cur = conn.cursor()
+    sql_command = 'truncate "ETL_BG_Score";'  #clear out ETL data
+    cur.execute(sql_command)
+    conn.commit()
+    dft=df.loc[['Block Group ID','Block Group Score']].copy()
+    dft=dft.transpose()
+    print(dft)
+    today_date=datetime.date
+    for row in dft.itertuples(index=False):
+        bg_geo_id=str(row[0])
+        score=validate_score(row[1])
+        print("read",bg_geo_id,score)
+        if bg_geo_id and score and uid:
+            sql_command='insert into "ETL_BG_Score" (bg_geo_id,score,uid,date) values (\'{}\',\'{}\',\'{}\',NOW()::date);'.format(bg_geo_id,score,uid)
+            print(sql_command)
+            cur.execute(sql_command)
+
+        else:
+            continue
+    conn.commit()
+    print("Move ETL Census Score into live table")
+    bg_score_etl_to_live(conn,cur)
+    return True
+
+
+def validate_score(score):
+    try:
+        score=int(score)
+    except Exception as e:
+        print("Score {} is not a valid integer".format(score))
+        return None
+    if 0 < score < 6:
+        return score
+    else:
+        return None
+
+
+def building_score_etl_to_live(conn,cur):
+    if conn is None:
+        return None
+    sql_command = """
+    insert into "Building_Score" (cs_id, uid, "Score", date_obtained) select cs_id,uid,score,date from "ETL_Building_Score"
+    on conflict on constraint building_score_pk do update
+    set "Score" = excluded."Score",
+    date_obtained = excluded.date_obtained;
+    """
+    cur.execute(sql_command)
+    conn.commit()
+    return True
+
+
+def bg_score_etl_to_live(conn,cur):
+    if conn is None:
+        return None
+    sql_command = """
+    insert into "BG_Score" (bg_geo_id, uid, score, date_obtained) select bg_geo_id,uid,score,date from "ETL_BG_Score"
+    on conflict on constraint bg_score_pk do update
+    set score = excluded.score,
+    date_obtained = excluded.date_obtained;
+    """
+    cur.execute(sql_command)
+    conn.commit()
+    return True
+
+
+def main():
+    conn=getConn()
+    if conn is None:
+        sys.exit("Failed to get SQL connection")
     if rg2.check_for_config():
         config = rg2.read_config()
         email_config = config['Email']
@@ -111,8 +328,14 @@ if __name__ == '__main__':
             print("Working directory:",os.getcwd())
         if (password == "") or (email_config['email'] == ""):
             sys.exit("Update ""config.ini"" with email and password before running script again.")
-        create_email(email_config['email'],password)
-
-
+        new_scores = check_email(email_config['email'],password,conn)
+        if new_scores:
+            update_user_scores(conn,'attachment','archive')
     else:
         sys.exit("Configure ""config.ini"" before running script again.")
+    conn.close()
+    return True
+
+
+if __name__ == '__main__':
+    main()
