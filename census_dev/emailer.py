@@ -16,6 +16,7 @@ import os
 from datetime import datetime
 import re
 import pandas as pd
+import openpyxl
 
 
 def create_email(to_email,email,password,attachment_name=None):
@@ -69,6 +70,16 @@ def parse_uid(data):
     pattern_uid = re.compile('\d+ \(UID (?P<uid>\d+)\)')   #regular expression for message UID
     match = pattern_uid.match(data)
     return match.group('uid')
+
+
+def parse_file(filename):
+    re_pat = re.compile('(?P<type>^Building|^Census)_(?P<uid>\\d+)_')
+    match = re_pat.match(filename)
+    if not match:
+        return None, None
+    type = match.group('type')
+    uid = match.group('uid')
+    return type, uid
 
 
 def check_email(email,password,conn):
@@ -146,28 +157,151 @@ def check_email(email,password,conn):
                 print("UID not found",subject)
     return new_scores
 
-def update_user_scores(inbox_folder,archive_folder):
+
+def update_user_scores(conn,inbox_folder,archive_folder):
     if inbox_folder[0]!="/":
         all_files=os.listdir(os.getcwd()+"/"+inbox_folder)
-    for file in all_files:
-        print(file)
-        filepath=os.path.join(os.getcwd(),inbox_folder, file)
-        try:
-            df=pd.read_excel(filepath,header=None,index_col=0)
-            print(df.loc[['CS_ID','Building Score','Block Group ID','Block Group Score']])
-        except Exception as e:
-            print("FAIL:",e)
-            pass
-        #TODO extract user from excel file name
-        #TODO loop over results and add to score ETL
-        #TODO build score ETL table
-        #TODO Write SQL to add score ETL to score tables
-        #TODO handle lease scores
-        #TODO handle census only file
+    else:
+        all_files=os.listdir(inbox_folder)
+    for filename in all_files:
+        print("Loading:",filename)
+        filepath=os.path.join(os.getcwd(),inbox_folder, filename)
+        xl_file = openpyxl.load_workbook(r'C:\output\attachment\Building_2_20210411_101451.xlsx',read_only=True,data_only=True)
+        type, uid = parse_file(filename)
+        if type and uid:
+            if type=="Building":
+                try:
+                    xl_file = openpyxl.load_workbook(filepath,read_only=True,data_only=True)
+                    sheets=xl_file.sheetnames
+                    xl_file.close()
+                except Exception as e:
+                    print("File {} couldn't be opened. Error: {}".format(filepath, e))
+                    continue
+                for sheetname in sheets:
+                    print("Sheet:",sheetname)
+                    try:
+                        df=pd.read_excel(filepath,sheet_name=sheetname,header=None,index_col=0)
+                        print(df.index)
+                        if ('CS_ID' in df.index) & ('Building Score' in df.index):
+                            etl_building_score(conn,df,uid)
+                        if ('Block Group ID' in df.index) & ('Block Group Score' in df.index):
+                            etl_census_score(conn,df,uid)
+                    except Exception as e:
+                        print("Building ETL Fail:",e)
+                        continue
+            else:  #Census
+                for sheetname in sheets:
+                    print("Sheet:",sheetname)
+                    try:
+                        df=pd.read_excel(filepath,sheet_name=sheetname,header=None,index_col=0)
+                        if ('Block Group ID' in df.index) & ('Block Group Score' in df.index):
+                            etl_census_score(conn,df,uid)
+                    except Exception as e:
+                        print("Census ETL Fail:",e)
+                        continue
+                pass
     return True
 
 
-if __name__ == '__main__':
+def etl_building_score(conn,df,uid):
+    if conn is None:
+        return False
+    cur = conn.cursor()
+    sql_command = 'truncate "ETL_Building_Score";'  #clear out ETL data
+    cur.execute(sql_command)
+    conn.commit()
+
+    dft=df.loc[['CS_ID','Building Score']].copy()
+    dft=dft.transpose()
+    print(dft)
+    # print(df.loc[['CS_ID','Building Score']])
+    today_date=datetime.date
+    for row in dft.itertuples(index=False):
+        cs_id=str(row[0])
+        score=validate_score(row[1])
+        print("read",cs_id,score)
+        if cs_id and score and uid:
+            sql_command='insert into "ETL_Building_Score" (cs_id,score,uid,date) values (\'{}\',\'{}\',\'{}\',NOW()::date);'.format(cs_id,score,uid)
+            print(sql_command)
+            cur.execute(sql_command)
+
+        else:
+            continue
+    conn.commit()
+    print("Move ETL Building Score into live table")
+    building_score_etl_to_live(conn,cur)
+    return True
+
+
+def etl_census_score(conn,df,uid):
+    if conn is None:
+        return False
+    cur = conn.cursor()
+    sql_command = 'truncate "ETL_BG_Score";'  #clear out ETL data
+    cur.execute(sql_command)
+    conn.commit()
+    dft=df.loc[['Block Group ID','Block Group Score']].copy()
+    dft=dft.transpose()
+    print(dft)
+    today_date=datetime.date
+    for row in dft.itertuples(index=False):
+        bg_geo_id=str(row[0])
+        score=validate_score(row[1])
+        print("read",bg_geo_id,score)
+        if bg_geo_id and score and uid:
+            sql_command='insert into "ETL_BG_Score" (bg_geo_id,score,uid,date) values (\'{}\',\'{}\',\'{}\',NOW()::date);'.format(bg_geo_id,score,uid)
+            print(sql_command)
+            cur.execute(sql_command)
+
+        else:
+            continue
+    conn.commit()
+    print("Move ETL Census Score into live table")
+    bg_score_etl_to_live(conn,cur)
+    return True
+
+
+def validate_score(score):
+    try:
+        score=int(score)
+    except Exception as e:
+        print("Score {} is not a valid integer".format(score))
+        return None
+    if 0 < score < 6:
+        return score
+    else:
+        return None
+
+
+def building_score_etl_to_live(conn,cur):
+    if conn is None:
+        return None
+    sql_command = """
+    insert into "Building_Score" (cs_id, uid, "Score", date_obtained) select cs_id,uid,score,date from "ETL_Building_Score"
+    on conflict on constraint building_score_pk do update
+    set "Score" = excluded."Score",
+    date_obtained = excluded.date_obtained;
+    """
+    cur.execute(sql_command)
+    conn.commit()
+    return True
+
+
+def bg_score_etl_to_live(conn,cur):
+    if conn is None:
+        return None
+    sql_command = """
+    insert into "BG_Score" (bg_geo_id, uid, score, date_obtained) select bg_geo_id,uid,score,date from "ETL_BG_Score"
+    on conflict on constraint bg_score_pk do update
+    set score = excluded.score,
+    date_obtained = excluded.date_obtained;
+    """
+    cur.execute(sql_command)
+    conn.commit()
+    return True
+
+
+def main():
     conn=getConn()
     if conn is None:
         sys.exit("Failed to get SQL connection")
@@ -183,7 +317,12 @@ if __name__ == '__main__':
             sys.exit("Update ""config.ini"" with email and password before running script again.")
         new_scores = check_email(email_config['email'],password,conn)
         if new_scores:
-            update_user_scores('attachment/','archive')
+            update_user_scores(conn,'attachment','archive')
     else:
         sys.exit("Configure ""config.ini"" before running script again.")
     conn.close()
+    return True
+
+
+if __name__ == '__main__':
+    main()
