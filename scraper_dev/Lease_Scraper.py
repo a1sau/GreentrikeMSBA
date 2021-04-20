@@ -22,7 +22,7 @@ def grab_placards():  ## NOTE -- this only searches properties that are listed f
     t_listings = t_listings.strip()
     t_listings = int(t_listings[-3:])
     pages = (t_listings//20) +2## uses the number of listings to determine how many pages are in the results.
-    print(f"Found {t_listings} placards across {pages -1} pages.\nStarting to Collect URL's")
+    print(f"Found {t_listings} placards across {pages -1} pages.\nStarting to Collect URL's of for lease properties.")
         ### This is what go to the search and pulls every listing url from the search page(s)
     for i in range(1,pages):      # loops equal to the number of pages in the search
         url = "https://www.loopnet.com/search/commercial-real-estate/pierce-county-wa/for-lease/{}/".format(i)  # Looks to this URL, increasing in page numbers.
@@ -160,7 +160,17 @@ def buildings_export(property_info):
             w.writerow(i)
     f.close()
 
+def lease_export(property_info):
+    listings = []
+    for i in property_info:
+        # TODO Match this format to the columns in the database for easy etl.
 
+        row = (i['Address_Line'],i['City'],i['State'],i['Postal_Code'],i['Property_Type'],i['bg_geo_id'],
+               i['CS_ID'],i['url'],None, i['SquareFeet'], None, None,
+               None, None, i['Upload_Date'], i['Currently_Listed'], i['Sale_Lease'], None, i['Price_month'],
+               i['Price_year'],i['Expansion_SqrFt'],i['Space'],i['Condition'],i['Available'],i['Term'])
+        listings.append(row)
+    return listings
 
 def main():
     print('Grab placards')

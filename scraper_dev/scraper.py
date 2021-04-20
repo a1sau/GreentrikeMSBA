@@ -6,7 +6,7 @@ import re
 import csv
 from datetime import datetime
 import censusgeocode as cg
-
+import Lease_Scraper as lease
 
 #Header information
 headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:82.0) Gecko/20100101 Firefox/82.0'}
@@ -250,6 +250,16 @@ def buildings_export(property_info):
             w.writerow(i)
     f.close()
 
+def sale_export(property_info):
+    listings = []
+    for i in property_info:
+        # TODO Match this format to the columns in the database for easy etl.
+        row = (i['Address_Line'], i['City'],i['State'],i['Postal_Code'],i['Property_Type'],i['bg_geo_id'],
+               i['CS_ID'],i['url'],i['Price'],i['SquareFeet'],i['Building_Class'],i['Year_Built'],
+               i['Sale_Type'],i['Picture_url'],i['Upload_Date'],i['Currently_Listed'],i['Sale_Leased'], None, None,
+               None, None, None, None, None, None)
+        listings.append(row)
+    return listings
 
 def main():
     print('Grab placards')
@@ -266,3 +276,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+#lease.grab_placards()
