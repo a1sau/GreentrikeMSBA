@@ -74,7 +74,7 @@ def building_dict(url_list):
                     site_facts['Property_Type'] = units_txt[-3]
                 geocode = cg.address(street=site_facts['Address_Line'], city=site_facts['City'], state=site_facts['State'], zipcode=site_facts['Postal_Code'])
                 try:
-                    GEOID = geocode[0]['geographies']['2010 Census Blocks'][0]['GEOID'][0:12]
+                    GEOID = geocode[0]['geographies']['2020 Census Blocks'][0]['GEOID'][0:12]
                     site_facts['bg_geo_id'] = GEOID
                     print(site_facts['Address_Line'], site_facts['City'], GEOID)
                 except Exception as err:
@@ -126,7 +126,10 @@ def building_dict(url_list):
             # Space
             site_facts['Space'] = units_txt[0]
             # Condition
-            site_facts['Condition'] = units_txt[-2]
+            if units_txt[-2] == '-':
+                site_facts['Condition'] = 'Not Listed'
+            else:
+                site_facts['Condition'] = units_txt[-2]
             # Avalable
             site_facts['Available'] = units_txt[-1]
             # Term
@@ -145,7 +148,7 @@ def building_dict(url_list):
             buildings.append(site_facts)
             #Increase Counter
             counter += 1
-        sleep(randint(2,6))
+        sleep(randint(5,10))
     return buildings
 
 def buildings_export(property_info):
