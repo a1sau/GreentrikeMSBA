@@ -18,6 +18,8 @@ from datetime import datetime
 import re
 import pandas as pd
 import openpyxl
+import rpy2.robjects as robjects
+from rpy2.robjects import pandas2ri
 
 
 def create_email(to_email,email,password,attachment_name=None):
@@ -312,6 +314,10 @@ def bg_score_etl_to_live(conn,cur):
     cur.execute(sql_command)
     conn.commit()
     return True
+
+def recalc_models():
+    pass
+
 
 
 def main():

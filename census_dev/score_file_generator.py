@@ -7,7 +7,7 @@ import reverse_geocoder2 as rg2
 import xlsxwriter
 from math import isnan
 import sys
-from datetime import datetime
+from datetime import datetime,date,timedelta
 import emailer as em
 
 
@@ -93,8 +93,8 @@ def select_sale_building(conn,user='',limit=10):
     order by RANDOM()
     limit {};
     """.format(user_filter,limit)
-    cur = conn.cursor()
-    cur.execute(sql_command)
+    # cur = conn.cursor()
+    # cur.execute(sql_command)
     try:
         df_var=pd.read_sql_query(sql_command,conn)
     except (Exception, psycopg2.DatabaseError) as err:
@@ -185,7 +185,6 @@ def control_building(conn,uid,limit):
     else:
         print("Excel generation failed")
         return None
-    ##TODO generate filename based on user
     ##TODO call email script
     return None
 
@@ -218,7 +217,7 @@ def get_user_email(conn,uid):
     return email
 
 
-if __name__ == '__main__':
+def email_users_main():
     conn=getConn()
     if rg2.check_for_config():
         config = rg2.read_config()
@@ -231,13 +230,112 @@ if __name__ == '__main__':
             print("Working directory:",os.getcwd())
         else:
             print("")
-    uid = 2
-    file=control_building(conn,uid,10)
-    to_email = get_user_email(conn,uid)
-    if file:
-        print("Sending email:",to_email,file)
-        em.create_email(to_email,email,password,file)
+    #Get list of users from server
+    sql_command="""select
+    use.uid
+    ,use.last_building_email
+    ,use.email_frequency
+    from "User" as use
+    where
+    use.subscribed_building = TRUE
+    and use.active = TRUE; 
+    """
+    try:
+        df_user=pd.read_sql_query(sql_command,conn)
+    except (Exception, psycopg2.DatabaseError) as err:
+        show_psycopg2_exception(err)
+        sys.exit()
+    today=date.today()
+    for i,user_line in df_user.iterrows():
+        print(i,user_line)
+        uid=user_line['uid']
+        freq=user_line['email_frequency']
+        last_email_dt=user_line['last_building_email']
+        print(type(last_email_dt))
+        if freq is None:
+            freq=7
+            update_user_frequency(conn,uid,freq)  #set default on server if missing
+        time_for_email=False
+        if user_line['last_building_email'] is None:  #email not previously sent
+            time_for_email=True
+        else:
+            next_email_dt=last_email_dt+timedelta(days=freq)
+            time_for_email = (today>=next_email_dt)
+        if time_for_email:  #generate new score file and email user
+            file=control_building(conn,uid,10)
+            to_email = get_user_email(conn,uid)
+            if file:
+                print("Sending email:",to_email,file)
+                email_sent=em.create_email(to_email,email,password,file)
+                if email_sent:
+                    update_last_sent(conn,uid)  #update user with latest email date
     conn.close()
+    return True
+
+
+def update_user_frequency(conn,uid,freq=7):
+    if uid is None:
+        return False
+    cur=conn.cursor()
+    sql_command="""
+    update "User" as use
+    set email_frequency = {}
+    where
+    use.uid={};
+    """.format(freq,uid)
+    try:
+        cur.execute(sql_command)
+        conn.commit()
+    except (Exception, psycopg2.DatabaseError) as err:
+        show_psycopg2_exception(err)
+        sys.exit()
+    return True
+
+
+def update_last_sent(conn,uid,building=True):
+    if uid is None:
+        return False
+    cur=conn.cursor()
+    if building:
+        field='last_building_email'
+    else:
+        field='last_census_email'
+    sql_command="""
+    update "User" as use
+    set {} = NOW()::date
+    where
+    use.uid={};
+    """.format(field,uid)
+    try:
+        cur.execute(sql_command)
+        conn.commit()
+    except (Exception, psycopg2.DatabaseError) as err:
+        show_psycopg2_exception(err)
+        sys.exit()
+    return True
+
+
+if __name__ == '__main__':
+    email_users_main()
+    # conn=getConn()
+    # if rg2.check_for_config():
+    #     config = rg2.read_config()
+    #     email_config = config['Email']
+    #     email = email_config.get('email')
+    #     password = email_config.get('password',raw=True)
+    #     work_dir = email_config.get('excel_output',raw=True)
+    #     if work_dir:
+    #         os.chdir(work_dir)
+    #         print("Working directory:",os.getcwd())
+    #     else:
+    #         print("")
+    # uid = 2
+    # file=control_building(conn,uid,10)
+    # to_email = get_user_email(conn,uid)
+    # if file:
+    #     print("Sending email:",to_email,file)
+    #     em.create_email(to_email,email,password,file)
+    # conn.close()
     # xlsx_test('test.xlsx')
 
 
