@@ -1,0 +1,5 @@
+To use configuration:
+Install Python 3.8
+Install R 4.0
+Configure file config.ini in census_dev
+Configure file 
