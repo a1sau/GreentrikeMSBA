@@ -264,10 +264,11 @@ def find_current_listings():
             conn.close()
             print('Database connection closed.')
 
-
-
-if __name__ == '__main__':
+def main():
     sale_insert()
     lease_insert()
     etl_to_primary()
-    #find_current_listings()
+
+
+if __name__ == '__main__':
+    main()
