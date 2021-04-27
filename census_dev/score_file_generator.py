@@ -350,6 +350,7 @@ def email_users_main():
                 email_sent=em.create_email(to_email,email,password,file)
                 if email_sent:
                     update_last_sent(conn,uid)  #update user with latest email date
+                    #TODO delete file after sent
 
     conn.close()
     return True
