@@ -6,8 +6,12 @@ library(FNN)
 library(class)
 library(psych)
 
-# Connect to database
-get_connection <- function(server, user, password, database){
+get_data <- function(scored_or_new, server, user, password, database,model_number){
+  library(odbc)
+  scored_sale_buildings = 'SELECT b."CS_ID", BS."Score", b."City", b."Property_Type", b."SquareFeet", b."Price", b."Building_Class", b."Sale_Type" FROM "Building" b RIGHT JOIN "Building_Score" BS on b."CS_ID" = BS.cs_id WHERE "Sale_Lease" = \'Sale\';'
+  
+  new_sale_buildings = 'SELECT b."CS_ID", BS."Score", b."City", b."Property_Type", b."SquareFeet", b."Price", b."Building_Class", b."Sale_Type" FROM "Building" b LEFT JOIN "Building_Score" BS on b."CS_ID" = BS.cs_id WHERE "Sale_Lease" = \'Sale\' AND BS."Score" IS null;'
+  
   con <- DBI::dbConnect(odbc::odbc(),
                         driver = "PostgreSQL Unicode(x64)",
                         database = as.character(database),
@@ -15,7 +19,14 @@ get_connection <- function(server, user, password, database){
                         PWD      = as.character(password),
                         server = as.character(server),
                         port = 5432)
+  if(scored_or_new == 'scored'){
+    df <- dbGetQuery(con,scored_sale_buildings)
   }
+  if(scored_or_new == 'new'){
+    df <- dbGetQuery(con,new_sale_buildings)
+  }
+  return (df)
+}
 
 clean_sale_data <- function(dataframe){
   #Look at and clean data
@@ -86,15 +97,9 @@ create_output <- function(predicted_values, model_name){
 }
 
 #Get list of building that have scores for them 
-scored_buildings ='SELECT b."CS_ID", BS."Score", b."City", b."Property_Type", b."SquareFeet", b."Price", b."Building_Class", b."Sale_Type" FROM "Building" b RIGHT JOIN "Building_Score" BS on b."CS_ID" = BS.cs_id WHERE "Sale_Lease" = \'Sale\';'
+building.scores <- get_data('scored',"greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com","bpope","somepassword","TEST")
 
-new_buildings = 'SELECT b."CS_ID", BS."Score", b."City", b."Property_Type", b."SquareFeet", b."Price", b."Building_Class", b."Sale_Type" FROM "Building" b LEFT JOIN "Building_Score" BS on b."CS_ID" = BS.cs_id WHERE "Sale_Lease" = \'Sale\' AND BS."Score" IS null;'
-
-
-con <- get_connection("greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com","bpope","somepassword","TEST")
-
-building.scores <- dbGetQuery(con, scored_buildings)
-new.buildings <- dbGetQuery(con, new_buildings)
+new.buildings <- get_data('new',"greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com","bpope","somepassword","TEST")
 
 clean_scored_data <- clean_sale_data(building.scores)
 clean_new_data <- clean_sale_data(new.buildings)
