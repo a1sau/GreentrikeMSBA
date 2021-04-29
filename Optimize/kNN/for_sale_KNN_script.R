@@ -1,16 +1,3 @@
----
-title: "Building_KNN_Model"
-author: "Benjamin Pope"
-date: "3/5/2021"
-output: word_document
----
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
-
-```{r}
 library(DBI)
 library(odbc)
 library(data.table)
@@ -18,36 +5,18 @@ library(caret)
 library(FNN)
 library(class)
 library(psych)
-```
 
-```{r}
 # Connect to database
+get_connection <- function(server, user, password, database){
+  con <- DBI::dbConnect(odbc::odbc(),
+                        driver = "PostgreSQL Unicode(x64)",
+                        database = as.character(database),
+                        UID      = as.character(user),
+                        PWD      = as.character(password),
+                        server = as.character(server),
+                        port = 5432)
+  }
 
-con <- DBI::dbConnect(odbc::odbc(),
-  driver = "PostgreSQL Unicode(x64)",
-  database = "TEST",
-  UID      = rstudioapi::askForPassword("Database user"),
-  PWD      = rstudioapi::askForPassword("Database password"),
-  server = "greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com",
-  port = 5432)
-```
-
-```{r}
-#Get list of building that have scores for them 
-building.scores <- dbGetQuery(con, 'SELECT b."CS_ID", BS."Score", b."City", b."Property_Type", b."SquareFeet", b."Price", b."Building_Class", b."Sale_Type"
-FROM "Building" b
-RIGHT JOIN "Building_Score" BS on b."CS_ID" = BS.cs_id
-WHERE "Sale_Lease" = \'Sale\';')
-
-new.buildings <- dbGetQuery(con, 'SELECT b."CS_ID", BS."Score", b."City", b."Property_Type", b."SquareFeet", b."Price", b."Building_Class", b."Sale_Type"
-FROM "Building" b
-LEFT JOIN "Building_Score" BS on b."CS_ID" = BS.cs_id
-WHERE "Sale_Lease" = \'Sale\' AND BS."Score" IS null;')
-
-```
-
-
-```{r}
 clean_sale_data <- function(dataframe){
   #Look at and clean data
   build.scores <- dataframe
@@ -99,58 +68,12 @@ clean_sale_data <- function(dataframe){
   final_sale_df <- cbind(build.scores[,c(1:2,5:6)],city,property_type,build_class,sale_type)
   return(final_sale_df)
 }
-```
 
-```{r}
-clean_scored_data <- clean_sale_data(building.scores)
-
-clean_new_data <- clean_sale_data(new.buildings)
-
-
-```
-
-
-```{r}
-#Split scored data
-train_index <- sample(row.names(clean_scored_data),0.7*dim(clean_scored_data)[1])
-valid_index <- setdiff(row.names(clean_scored_data), train_index)
-train.df <- clean_scored_data[train_index,]
-valid.df <- clean_scored_data[valid_index,]
-```
-
-
-```{r}
-find_best_knn <- function(train_dataframe,valid_dataframe){
-  k.num = nrow(train.df)
-  build.accuracy.df <- data.frame(k = seq(1, k.num, 1), accuracy = rep(0, k.num))
-# compute knn for different k on validation.
-  for(i in 1:k.num) {
-    knn.pred<- class::knn(train = train.df[,3:17], test = valid.df[,3:17], cl = train.df[,2],k=i)
-  
-    build.accuracy.df[i,2] <- confusionMatrix(knn.pred, valid.df$Score)$overall[1]
-  }
-  return(build.accuracy.df)
-}
-```
-
-```{r}
-temp.df <-find_best_knn(train.df,valid.df)
-```
-
-```{r}
-#Run KNN on new records
-for_sale_KNN <- function(scored_buildings, new_buildings, K){
-  knn.pred.new<- class::knn(train = scored_buildings[,3:17], test = new_buildings[,3:17], cl = scored_buildings[,2],k=K)
+for_sale_KNN <- function(clean_scored_buildings, clean_new_buildings, K){
+  knn.pred.new<- class::knn(train = clean_scored_buildings[,3:17], test = clean_new_buildings[,3:17], cl = clean_scored_buildings[,2],k=K)
   return(knn.pred.new)
 }
-```
 
-```{r}
-knn.scores <- for_sale_KNN(clean_scored_data, clean_new_data,5)
-```
-
-
-```{r}
 #Create Dataframe for dynamic export
 create_output <- function(predicted_values, model_name){
   outscore <- as.data.frame(predicted_values)
@@ -161,10 +84,23 @@ create_output <- function(predicted_values, model_name){
   setnames(output, (c( "cs_id", "model_id", "score", "date_calculated")))
   return (output)
 }
-```
 
-```{r}
-output.df <-create_output(knn.scores, 'For_sale_KNN')
-```
+#Get list of building that have scores for them 
+scored_buildings ='SELECT b."CS_ID", BS."Score", b."City", b."Property_Type", b."SquareFeet", b."Price", b."Building_Class", b."Sale_Type" FROM "Building" b RIGHT JOIN "Building_Score" BS on b."CS_ID" = BS.cs_id WHERE "Sale_Lease" = \'Sale\';'
+
+new_buildings = 'SELECT b."CS_ID", BS."Score", b."City", b."Property_Type", b."SquareFeet", b."Price", b."Building_Class", b."Sale_Type" FROM "Building" b LEFT JOIN "Building_Score" BS on b."CS_ID" = BS.cs_id WHERE "Sale_Lease" = \'Sale\' AND BS."Score" IS null;'
+
+
+con <- get_connection("greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com","bpope","somepassword","TEST")
+
+building.scores <- dbGetQuery(con, scored_buildings)
+new.buildings <- dbGetQuery(con, new_buildings)
+
+clean_scored_data <- clean_sale_data(building.scores)
+clean_new_data <- clean_sale_data(new.buildings)
+
+sale_knn <- for_sale_KNN(clean_scored_buildings = clean_scored_data, clean_new_buildings = clean_new_data, K=5)
+
+create_output(sale_knn, 'for_sale_KNN')
 
 
