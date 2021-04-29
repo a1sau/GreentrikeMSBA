@@ -10,26 +10,16 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r}
-library(odbc)
-library(caret)
-```
-Build model and data cleaning functions to copy to r script.  
-
-```{r}
-# Connect to database
-
-con <- DBI::dbConnect(odbc::odbc(),
-  driver = "PostgreSQL Unicode(x64)",
-  database = "TEST",
-  UID      = rstudioapi::askForPassword("Database user"),
-  PWD      = rstudioapi::askForPassword("Database password"),
-  server = "greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com",
-  port = 5432)
+#Requires odbc and caret installed 
 ```
 
-
 ```{r}
-get_data <- function(server, user, password, database,model_number){
+get_data <- function(scored_or_new, server, user, password, database,model_number){
+  library(odbc)
+  scored_lease_buildings = 'SELECT  b."CS_ID",BS."Score", b."City", b."Property_Type", b."SquareFeet", b."Price_monthly", b."Expansion_sqft", b."Condition", b."Available", b."Term" FROM "Building" b RIGHT JOIN "Building_Score" BS on b."CS_ID" = BS.cs_id WHERE "Sale_Lease" = \'Lease\';'
+
+new_lease_buildings = 'SELECT  b."CS_ID",BS."Score", b."City", b."Property_Type", b."SquareFeet", b."Price_monthly", b."Expansion_sqft", b."Condition", b."Available", b."Term" FROM "Building" b LEFT JOIN "Building_Score" BS on b."CS_ID" = BS.cs_id WHERE "Sale_Lease" = \'Lease\' AND BS."Score" IS null;'
+
   con <- DBI::dbConnect(odbc::odbc(),
   driver = "PostgreSQL Unicode(x64)",
   database = as.character(database),
@@ -37,26 +27,20 @@ get_data <- function(server, user, password, database,model_number){
   PWD      = as.character(password),
   server = as.character(server),
   port = 5432)
-  
-  if(model_number == 1){test = dbGetQuery(con, 'SELECT  b."CS_ID",BS."Score", b."City", b."Property_Type", b."SquareFeet", b."Price_monthly", b."Expansion_sqft", b."Available", b."Term" FROM "Building" b LEFT JOIN "Building_Score" BS on b."CS_ID" = BS.cs_id WHERE "Sale_Lease" = \'Lease\'')}
-  return(test)
+  if(scored_or_new == 'scored'){
+    df <- dbGetQuery(con,scored_lease_buildings)
+  }
+  if(scored_or_new == 'new'){
+    df <- dbGetQuery(con,new_lease_buildings)
+  }
+  return (df)
 }
 ```
 
 ```{r}
-import_querry <- get_data("greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com","bpope","somepassword","TEST",1)
+lease_scored <- get_data('scored',"greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com","bpope","somepassword","TEST")
 
-
-lease_df <- import_querry
-
-```
-
-```{r}
-
-import_querry <- dbGetQuery(con,'SELECT  b."CS_ID",BS."Score", b."City", b."Property_Type", b."SquareFeet", b."Price_monthly", b."Expansion_sqft", b."Available", b."Term"
-FROM "Building" b
-LEFT JOIN "Building_Score" BS on b."CS_ID" = BS.cs_id
-WHERE "Sale_Lease" = \'Lease\'')
+lease_new <- get_data('new',"greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com","bpope","somepassword","TEST")
 ```
 
 Things to consider:
@@ -73,119 +57,120 @@ Things to consider:
       cutoff point for variables (example, city has 3 variables: Tacoma, Puyallup, other)
   4.ensure columns will remain in order
     must lock dummy variable length *OR* ensure columns match for train to validate.
-```{r}
-lease_df$Score <- as.factor(lease_df$Score)
-```
     
-
 ```{r}
 clean_lease_data <- function(dataframe){
   lease_df = dataframe
-#  *MAY CHANGE*  We can see if expansion square feet should retain original values, or just be marked as an option.
-lease_df$Expansion_sqft <- ifelse(is.na(lease_df$Expansion_sqft),0,1)
-# TODO look into alternative way to handle missing prices (high value, mean) and see if we can eliminate them higher up the data pipeline.
-lease_df$Price_monthly <- ifelse(is.na(lease_df$Price_monthly),0,lease_df$Price_monthly)
-
-# Dummy variables with Property Type
-pt_office <- '(Office|office)'
-pt_mixed <- '(/|Flex)'
-pt_other <- '(Industrial|Restaurant|Medical|Retail)'
-#Start with flex to change properties that have office so that we don't double dip.
-lease_df$Property_Type <- ifelse(grepl(pt_mixed,lease_df$Property_Type),'PT_Flex',lease_df$Property_Type)
-lease_df$Property_Type <- ifelse(grepl(pt_office,lease_df$Property_Type),'PT_Office',lease_df$Property_Type)
-lease_df$Property_Type <- ifelse(grepl(pt_other,lease_df$Property_Type),'PT_Other',lease_df$Property_Type)
-lease_df$Property_Type <- as.factor(lease_df$Property_Type)
-
-# Dummy variable with available
-ava_now <- "(Now|now)"
-ava_30to120 <- "(30 Days|60 Days|90 Days|120 Days)"
-ava_other <- "TBD"
-ava_date <- "[0-9]$"
-lease_df$Available <- ifelse(grepl(ava_now,lease_df$Available),'Available_Now',lease_df$Available)
-lease_df$Available <- ifelse(grepl(ava_30to120,lease_df$Available),'Available_30-120_Days',lease_df$Available)
-lease_df$Available <- ifelse(grepl(ava_date,lease_df$Available),"Available_Other",lease_df$Available)
-lease_df$Available <- ifelse(grepl(ava_other,lease_df$Available),"Available_Other",lease_df$Available)
-lease_df$Available <- as.factor(lease_df$Available)
-
-# Dummy Variables with Term
-#  Feedback from GT for this.  what is the more important side of a term?  Something long term?  negotiable?
-term_less5 <- '^[0-5] Yrs|1 Yr|^[0-5]-[2-5] Yrs'
-term_10less <- '[0-9]-[1]'
-term_dates <- '[0-9]$'
- 
-lease_df$Term <- ifelse(grepl(term_less5,lease_df$Term),'Term_short_term',lease_df$Term)
-lease_df$Term <- ifelse(grepl(term_10less,lease_df$Term),'Term_long_term',lease_df$Term)
-lease_df$Term <- ifelse(grepl(term_dates,lease_df$Term),'Term_Negotiable',lease_df$Term)
-lease_df$Term <- ifelse(lease_df$Term == 'Negotiable','Term_Negotiable',lease_df$Term)
-lease_df$Term <- as.factor(lease_df$Term)
-
-# Dummy variables for city
-city_tacoma <- "(Tacoma|University Place|Ruston|Fircrest)"
-city_puy <- '(Puyallup|Sumner|South hill)'
-city_other <- '(City_Tacoma|City_Puyallup)'
-lease_df$City <- ifelse(grepl(city_tacoma,lease_df$City),'City_Tacoma',lease_df$City) #Groups together Tacoma
-lease_df$City <- ifelse(grepl(city_puy,lease_df$City),'City_Puyallup',lease_df$City) #Groups together Puyallup
-lease_df$City <- ifelse(grepl(city_other,lease_df$City),lease_df$City, 'City_Other') # Groups together all others into "Other"
-lease_df$City<-  as.factor(lease_df$City)
-
-dummy_city <- as.data.frame(psych::dummy.code(lease_df$City))
-dummy_property_type <- as.data.frame(psych::dummy.code(lease_df$Property_Type))
-dummy_avaliable <- as.data.frame(psych::dummy.code(lease_df$Available))
-dummy_term <- as.data.frame(psych::dummy.code(lease_df$Term))
-
-temp_lease_df <- lease_df[,-c(3:4,8:9)]
-final_lease_df <- cbind(temp_lease_df,dummy_city,dummy_property_type,dummy_avaliable,dummy_term)
-
-norm.values <- caret::preProcess(final_lease_df[,3:4], method = c("center","scale"))
-final_lease_df[,3:4] <- predict(norm.values, final_lease_df[,3:4])
-
-return (final_lease_df)
+  library(caret)
+  #  *MAY CHANGE*  We can see if expansion square feet should retain original values, or just be marked as an option.
+  lease_df$Expansion_sqft <- ifelse(is.na(lease_df$Expansion_sqft),0,1)
+  # TODO look into alternative way to handle missing prices (high value, mean) and see if we can eliminate them higher up the data pipeline.
+  lease_df$Price_monthly <- ifelse(is.na(lease_df$Price_monthly),0,lease_df$Price_monthly)
+  
+  lease_df$Score <- as.factor(lease_df$Score)
+  # Dummy variables with Property Type
+  pt_office <- '(Office|office)'
+  pt_mixed <- '(/|Flex)'
+  pt_other <- '(Industrial|Restaurant|Medical|Retail)'
+  #Start with flex to change properties that have office so that we don't double dip.
+  lease_df$Property_Type <- ifelse(grepl(pt_mixed,lease_df$Property_Type),'PT_Flex',lease_df$Property_Type)
+  lease_df$Property_Type <- ifelse(grepl(pt_office,lease_df$Property_Type),'PT_Office',lease_df$Property_Type)
+  lease_df$Property_Type <- ifelse(grepl(pt_other,lease_df$Property_Type),'PT_Other',lease_df$Property_Type)
+  lease_df$Property_Type <- as.factor(lease_df$Property_Type)
+  
+  # Dummy variable with available
+  ava_now <- "(Now|now)"
+  ava_30to120 <- "(30 Days|60 Days|90 Days|120 Days)"
+  ava_other <- "TBD"
+  ava_date <- "[0-9]$"
+  lease_df$Available <- ifelse(grepl(ava_now,lease_df$Available),'Available_Now',lease_df$Available)
+  lease_df$Available <- ifelse(grepl(ava_30to120,lease_df$Available),'Available_30-120_Days',lease_df$Available)
+  lease_df$Available <- ifelse(grepl(ava_date,lease_df$Available),"Available_Other",lease_df$Available)
+  lease_df$Available <- ifelse(grepl(ava_other,lease_df$Available),"Available_Other",lease_df$Available)
+  lease_df$Available <- as.factor(lease_df$Available)
+  
+  # Dummy Variables with Term
+  #  Feedback from GT for this.  what is the more important side of a term?  Something long term?  negotiable?
+  term_less5 <- '^[0-5] Yrs|1 Yr|^[0-5]-[2-5] Yrs'
+  term_10less <- '[0-9]-[1]'
+  term_dates <- '[0-9]$'
+   
+  lease_df$Term <- ifelse(grepl(term_less5,lease_df$Term),'Term_short_term',lease_df$Term)
+  lease_df$Term <- ifelse(grepl(term_10less,lease_df$Term),'Term_long_term',lease_df$Term)
+  lease_df$Term <- ifelse(grepl(term_dates,lease_df$Term),'Term_Negotiable',lease_df$Term)
+  lease_df$Term <- ifelse(lease_df$Term == 'Negotiable','Term_Negotiable',lease_df$Term)
+  lease_df$Term <- as.factor(lease_df$Term)
+  
+  # Dummy variables for city
+  city_tacoma <- "(Tacoma|University Place|Ruston|Fircrest)"
+  city_puy <- '(Puyallup|Sumner|South hill)'
+  city_other <- '(City_Tacoma|City_Puyallup)'
+  lease_df$City <- ifelse(grepl(city_tacoma,lease_df$City),'City_Tacoma',lease_df$City) #Groups together Tacoma
+  lease_df$City <- ifelse(grepl(city_puy,lease_df$City),'City_Puyallup',lease_df$City) #Groups together Puyallup
+  lease_df$City <- ifelse(grepl(city_other,lease_df$City),lease_df$City, 'City_Other') # Groups together all others into "Other"
+  lease_df$City<-  as.factor(lease_df$City)
+  
+  dummy_city <- as.data.frame(psych::dummy.code(lease_df$City))
+  dummy_property_type <- as.data.frame(psych::dummy.code(lease_df$Property_Type))
+  dummy_avaliable <- as.data.frame(psych::dummy.code(lease_df$Available))
+  dummy_term <- as.data.frame(psych::dummy.code(lease_df$Term))
+  
+  temp_lease_df <- lease_df[,c(1:2,5:7)]
+  final_lease_df <- cbind(temp_lease_df,dummy_city,dummy_property_type,dummy_avaliable,dummy_term)
+  
+  norm.values <- caret::preProcess(final_lease_df[,3:4], method = c("center","scale"))
+  final_lease_df[,3:4] <- predict(norm.values, final_lease_df[,3:4])
+  
+  return (final_lease_df)
 }
 ```
 
-
 ```{r}
-str(lease_df)
-
-clean_lease_data(lease_df)
+cleaned_lease_scored <- clean_lease_data(lease_scored)
+cleaned_lease_new <- clean_lease_data(lease_new)
 ```
 
 ```{r}
 #Function to normalize and create dummy variables
-
-train_index <- sample(row.names(final_lease_df),round(0.7*dim(final_lease_df)[1]))
-valid_index <- setdiff(row.names(final_lease_df),train_index)
-
-train.norm.df <- final_lease_df
-valid.norm.df <- final_lease_df
-
-train.norm.df[,3:4] <- predict(norm.values, train.norm.df[,3:4])
-valid.norm.df[,3:4] <- predict(norm.values, valid.norm.df[,3:4])
-
-train.norm.df
-
+train_index <- sample(row.names(cleaned_lease_scored),round(0.7*dim(cleaned_lease_scored)[1]))
+valid_index <- setdiff(row.names(cleaned_lease_scored),train_index)
+train.df <- cleaned_lease_scored[train_index,]
+valid.df <- cleaned_lease_scored[valid_index,]
 ```
 
 ```{r}
 #run KNN tests to find best k
-k.num = nrow(train.norm.df)
-build.accuracy.df <- data.frame(k = seq(1, k.num, 1), accuracy = rep(0, k.num))
+find_best_knn <- function(train_dataframe,valid_dataframe){
+  k.num = nrow(train.df)
+  build.accuracy.df <- data.frame(k = seq(1, k.num, 1), accuracy = rep(0, k.num))
 # compute knn for different k on validation.
-for(i in 1:k.num) {
-  knn.pred<- class::knn(train = train.norm.df[,3:21], test = valid.norm.df[,3:21], cl = train.norm.df[,2],k=i)
+  for(i in 1:k.num) {
+    knn.pred<- class::knn(train = train.df[,3:17], test = valid.df[,3:17], cl = train.df[,2],k=i)
   
-  build.accuracy.df[i,2] <- confusionMatrix(knn.pred, valid.norm.df$Score)$overall[1]
+    build.accuracy.df[i,2] <- confusionMatrix(knn.pred, valid.df$Score)$overall[1]
+  }
+  return(build.accuracy.df)
 }
-max(build.accuracy.df)
-build.accuracy.df
-
-knn.model.train<- class::knn(train = train.norm.df[,3:21], test = train.norm.df[,3:21], cl = train.norm.df[,2],k=7)
-confusionMatrix(as.factor(knn.model.train), as.factor(train.norm.df$Score))
-
-knn.model<- class::knn(train = train.norm.df[,3:21], test = valid.norm.df[,3:21], cl = train.norm.df[,2],k=7)
-
-confusionMatrix(as.factor(knn.model), as.factor(valid.norm.df$Score))
-
 ```
+
+```{r}
+#
+for_lease_KNN <- function(clean_scored_buildings, clean_new_buildings, K){
+  knn.pred.new<- class::knn(train = clean_scored_buildings[,3:17], test = clean_new_buildings[,3:17], cl = clean_scored_buildings[,2],k=K)
+  return(knn.pred.new)
+}
+```
+
+```{r}
+#Create Dataframe for dynamic export
+create_output <- function(predicted_values, model_name){
+  outscore <- as.data.frame(predicted_values)
+  cs_id <- clean_new_data$CS_ID
+  model_number <- model_name
+  date <- Sys.Date()
+  output <- cbind(cs_id, model_number, outscore, date)
+  setnames(output, (c( "cs_id", "model_id", "score", "date_calculated")))
+  return (output)
+}
 ```
 

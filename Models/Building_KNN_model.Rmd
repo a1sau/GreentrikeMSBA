@@ -21,28 +21,34 @@ library(psych)
 ```
 
 ```{r}
-# Connect to database
+get_data <- function(scored_or_new, server, user, password, database,model_number){
+  library(odbc)
+  scored_sale_buildings = 'SELECT b."CS_ID", BS."Score", b."City", b."Property_Type", b."SquareFeet", b."Price", b."Building_Class", b."Sale_Type" FROM "Building" b RIGHT JOIN "Building_Score" BS on b."CS_ID" = BS.cs_id WHERE "Sale_Lease" = \'Sale\';'
 
-con <- DBI::dbConnect(odbc::odbc(),
-  driver = "PostgreSQL Unicode(x64)",
-  database = "TEST",
-  UID      = rstudioapi::askForPassword("Database user"),
-  PWD      = rstudioapi::askForPassword("Database password"),
-  server = "greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com",
-  port = 5432)
+  new_sale_buildings = 'SELECT b."CS_ID", BS."Score", b."City", b."Property_Type", b."SquareFeet", b."Price", b."Building_Class", b."Sale_Type" FROM "Building" b LEFT JOIN "Building_Score" BS on b."CS_ID" = BS.cs_id WHERE "Sale_Lease" = \'Sale\' AND BS."Score" IS null;'
+
+  con <- DBI::dbConnect(odbc::odbc(),
+    driver = "PostgreSQL Unicode(x64)",
+    database = as.character(database),
+    UID      = as.character(user),
+    PWD      = as.character(password),
+    server = as.character(server),
+    port = 5432)
+  if(scored_or_new == 'scored'){
+    df <- dbGetQuery(con,scored_sale_buildings)
+  }
+  if(scored_or_new == 'new'){
+    df <- dbGetQuery(con,new_sale_buildings)
+  }
+  return (df)
+}
 ```
 
 ```{r}
 #Get list of building that have scores for them 
-building.scores <- dbGetQuery(con, 'SELECT b."CS_ID", BS."Score", b."City", b."Property_Type", b."SquareFeet", b."Price", b."Building_Class", b."Sale_Type"
-FROM "Building" b
-RIGHT JOIN "Building_Score" BS on b."CS_ID" = BS.cs_id
-WHERE "Sale_Lease" = \'Sale\';')
+building.scores <- get_data('scored',"greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com","bpope","somepassword","TEST")
 
-new.buildings <- dbGetQuery(con, 'SELECT b."CS_ID", BS."Score", b."City", b."Property_Type", b."SquareFeet", b."Price", b."Building_Class", b."Sale_Type"
-FROM "Building" b
-LEFT JOIN "Building_Score" BS on b."CS_ID" = BS.cs_id
-WHERE "Sale_Lease" = \'Sale\' AND BS."Score" IS null;')
+new.buildings <- get_data('new',"greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com","bpope","somepassword","TEST")
 
 ```
 
@@ -109,16 +115,6 @@ clean_new_data <- clean_sale_data(new.buildings)
 
 ```
 
-
-```{r}
-#Split scored data
-train_index <- sample(row.names(clean_scored_data),0.7*dim(clean_scored_data)[1])
-valid_index <- setdiff(row.names(clean_scored_data), train_index)
-train.df <- clean_scored_data[train_index,]
-valid.df <- clean_scored_data[valid_index,]
-```
-
-
 ```{r}
 find_best_knn <- function(train_dataframe,valid_dataframe){
   k.num = nrow(train.df)
@@ -134,8 +130,40 @@ find_best_knn <- function(train_dataframe,valid_dataframe){
 ```
 
 ```{r}
+#Split scored data
+train_index <- sample(row.names(clean_scored_data),0.7*dim(clean_scored_data)[1])
+valid_index <- setdiff(row.names(clean_scored_data), train_index)
+train.df <- clean_scored_data[train_index,]
+valid.df <- clean_scored_data[valid_index,]
+
 temp.df <-find_best_knn(train.df,valid.df)
+order(-temp.df$accuracy)[1:3]
+
 ```
+
+```{r}
+trials = 100
+t.df <- data.frame(first = rep(0,trials),second = rep(0,trials), third = rep(0,trials))
+for(i in 1:trials){
+  train_index <- sample(row.names(clean_scored_data),0.7*dim(clean_scored_data)[1])
+  valid_index <- setdiff(row.names(clean_scored_data), train_index)
+  train.df <- clean_scored_data[train_index,]
+  valid.df <- clean_scored_data[valid_index,]
+
+  temp.df <-find_best_knn(train.df,valid.df)
+  t.df[i,1] <- order(-temp.df$accuracy)[1]
+  t.df[i,2] <- order(-temp.df$accuracy)[2]
+  t.df[i,3] <- order(-temp.df$accuracy)[3]
+}
+t.df
+```
+
+```{r}
+hist(t.df[,1],breaks = nrow(train.df))
+hist(t.df[,2],breaks = nrow(train.df))
+hist(t.df[,3],breaks = nrow(train.df))
+```
+
 
 ```{r}
 #Run KNN on new records
@@ -158,13 +186,13 @@ create_output <- function(predicted_values, model_name){
   model_number <- model_name
   date <- Sys.Date()
   output <- cbind(cs_id, model_number, outscore, date)
-  setnames(output, (c( "cs_id", "model_id", "score", "date_calculated")))
+  setnames(output, (c( "CS_ID", "model_id", "score", "date_calculated")))
   return (output)
 }
 ```
 
 ```{r}
-output.df <-create_output(knn.scores, 'For_sale_KNN')
+create_output(knn.scores, 'For_sale_KNN')
 ```
 
 
