@@ -36,50 +36,85 @@ def connect(): #Found def config and def connect from https://www.postgresqltuto
             print("{} records deleted from the ETL table.".format(count_test[0]))
             conn.commit()
         cur.close()
-        # # TODO copy data from csv to Building ETL
-            #Ensure that filename will be correct name of most current scrape
-        col_names = ("CS_ID","url","Address_Line","City","State","Postal_Code","bg_geo_id","Property_Type","Price","SquareFeet","Building_Class","Year_Built","Sale_Type","Picture_url","Upload_Date","Currently_Listed","Sale_Leased")
+
+            # Here is the order of columns as they exist in the Buildings Table.  They have the numerical index for ease of reference.
+        # Address_Line[0], City[1], State[2], Postal_Code[3], Property_Type[4], bg_geo_id[5],
+        # CS_ID[6], url[7], Price[8], SquareFeet[9], Building_class[10], YearBuilt[11],
+        # Sale_Type[12], Picture_URL[13], Upload_Date[14], Currently_Listed[15], Sale_Lease[16], old_CS_ID[17], Price_monthly[18],
+        # Price_yearly[19], Expansion_SqrFt[20], Space[21], Condition[22], Available[23], Term[24]
+
+            # Here is the order of columns as they show up in the loopnet_Sale_csv.
+        # CS_ID[0] ,url[1] ,Address_Line[2] ,City[3] ,State[4],Postal_Code[5],
+        # bg_geo_id[6], Property_Type[7], Price[8], SquareFeet[9], Building_Class[10],Year_Built[11],
+        # Sale_Type[12], Picture_url[13], Upload_Date[14], Currently_Listed[15], Sale_Leased[16]
+
         cur = conn.cursor()
-        with open('loopnet_listings_2021_03_02-07_49_55_AM.csv', 'r') as f:
+        # Upload Buildings for Sale to ETL_Buildings. loopnet_listings_2021_04_07-09_20_15_AM
+        with open('loopnet_listings_2021_04_07-09_20_15_AM.csv', 'r') as f:
             reader = csv.reader(f)
             next(reader)  # Skip the header row.
-            for row in reader:
-                data = (row[2], row[3],row[4], row[5],row[7], row[6],row[0], row[1],row[8], row[9], row[10], row[11], row[12], row[13], row[14], row[15], row[16])
-                ETL_Building_insert =  "INSERT INTO \"ETL_Building\" VALUES (nullif(%s,''), nullif(%s,''), nullif(%s,''), nullif(%s,''), nullif(%s,'')," \
-                                       " nullif(%s,''), nullif(%s,''), nullif(%s,'',) cast(nullif(%s,'') as double precision), cast(nullif(%s,'') as double precision)," \
-                                       " nullif(%s,''), nullif(%s,''), nullif(%s,''), nullif(%s,''), nullif(%s,''), nullif(%s,''))"
-                ######
-                cur.execute("INSERT INTO \"ETL_Building\" (\"CS_ID\",url,\"Address_Line\",\"City\",\"State\",\"Postal_Code\","
-                                                  "\"bg_geo_id\",\"Property_Type\",\"Price\",\"SquareFeet\","
-                                                  "\"Building_Class\",\"Year_Built\",\"Sale_Type\",\"Picture_url\","
-                                                  "\"Upload_Date\",\"Currently_listed\",\"Sale_Lease\")"
-                        " VALUES (nullif(%s,''), nullif(%s,''), nullif(%s,''), nullif(%s,''), nullif(%s,''),"
-                                " nullif(%s,''), nullif(%s,''), nullif(%s,''), cast(nullif(%s,'')as double precision), cast(nullif(%s,'') as double precision),"
-                                " nullif(%s,''), nullif(%s,''), nullif(%s,''), nullif(%s,''), %s,"
-                                " %s, nullif(%s,''))",
-                        row)
+            for i in reader:
+                data = (i[2], i[3], i[4], i[5], i[7], i[6],
+                        i[0], i[1], i[8], i[9], i[10], i[11],
+                        i[12], i[13], i[14], i[15], i[16], None, None,
+                        None, None, None, None, None, None)
+                ETL_Building_insert ='INSERT INTO "ETL_Building" VALUES ' \
+                               '(%s, %s, %s, %s, %s, %s,' \
+                               ' %s, %s, cast(nullif(%s,\'\') as double precision), cast(nullif(%s,\'\') as double precision), %s, %s,' \
+                               ' %s, %s, %s, %s, %s, %s, cast(nullif(%s,\'\') as double precision),' \
+                               ' cast(nullif(%s,\'\') as double precision), cast(nullif(%s,\'\') as double precision), %s, %s, %s, %s)'
+                print(data)
+                cur.execute(ETL_Building_insert, data)
         conn.commit()
         cur.close()
-        #
+
+        # Upload Buildings for Lease to ETL_Buildings.
+
+            # Here is the order of columns as they exist in the Buildings Table.  They have the numerical index for ease of reference.
+        # Address_Line[0], City[1], State[2], Postal_Code[3], Property_Type[4], bg_geo_id[5],
+        # CS_ID[6], url[7], Price[8], SquareFeet[9], Building_class[10], YearBuilt[11],
+        # Sale_Type[12], Picture_URL[13], Upload_Date[14], Currently_Listed[15], Sale_Lease[16], old_CS_ID[17], Price_monthly[18],
+        # Price_yearly[19], Expansion_SqrFt[20], Space[21], Condition[22], Available[23], Term[24]
+
+            # Here is the order of columns as they are listed in the loopnet_Lease_csv.
+        # Address_Line[0], City[1], State[2], Postal_Code[3], Property_Type[4],bg_geo_id[5],
+        # CS_ID[6], url[7], Price_month[8], Price_year[9], SquareFeet[10], Expansion_SqrFt[11],
+        # Space[12], Condition[13],  Available[14], Term[15], Upload_Date[16], Currently_Listed[17], Sale_Lease[18]
         cur = conn.cursor()
+        with open('loopnet_listings_lease_2021_04_07-01_52_PM.csv', 'r') as f:
+            reader = csv.reader(f)
+            next(reader)
+            for i in reader: #In same order as reference above.
+                data = (i[0], i[1], i[2], i[3], i[4], i[5],
+                        i[6], i[7], None, i[10], None, None,
+                        None, None, i[16], i[17], i[18], None, i[8],
+                        i[9], i[11], i[12], i[13], i[14], i[15])
+                lease_insert = 'INSERT INTO "ETL_Building" VALUES ' \
+                               '(%s, %s, %s, %s, %s, %s,' \
+                               ' %s, %s, cast(%s as double precision), cast(%s as double precision), %s, %s,' \
+                               ' %s, %s, %s, %s, %s, %s, cast(nullif(%s,\'\') as double precision),' \
+                               ' cast(nullif(%s,\'\') as double precision), cast(nullif(%s,\'\') as double precision), %s, %s, %s, %s)'
+                print(data)
+                cur.execute(lease_insert, data)
+            conn.commit()
+
         # Statement to check ETL_Building against Building.
+        cur = conn.cursor()
         left_exclude_join = 'SELECT "ETL_Building".* FROM "ETL_Building" Left JOIN "Building" ON "ETL_Building"."CS_ID" = "Building"."CS_ID" WHERE "Building"."CS_ID" IS NULL'
         cur.execute(left_exclude_join)
         left_exclude_join = cur.fetchall()
         print("There are {} records to be updated from ETL_Building.".format(len(left_exclude_join)))
-        for i in left_exclude_join:  #i[6] is CS_ID  i[-2] is Currently_listed  ("Address_Line", "City", "State", "Postal_Code", "Property_Type", "bg_geo_id", "CS_ID", "url", "Price", "SquareFeet", "Building_Class", "Year_Built", "Sale_Type", "Picture_url", "Upload_Date", "Currently_listed", "Sale_Lease")
-            data = (i[0], i[1], i[2], i[3], i[4], i[5], i[6], i[7], i[8], i[9], i[10], i[11], i[12], i[13], i[14], i[15], i[16])
+        for i in left_exclude_join:
+            data = (i[0], i[1], i[2], i[3], i[4], i[5], i[6], i[7], i[8], i[9], i[10], i[11], i[12], i[13], i[14], i[15], i[16],i[17],i[18],i[19],i[20],i[21],i[22],i[23],i[24])
             print("Inserting {} into the Building table".format(i[6]))
-            insert_command = "INSERT INTO \"Building\" VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"# insert statement to Builing Table
+            insert_command = 'INSERT INTO "Building" VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)' # insert statement to Builing Table
             cur.execute(insert_command, data) #Pass in two arguments to make life easier.
             # Update Currently listed column to TRUE
-            update_command = "UPDATE \"Building\" SET \"Currently_listed\" = true WHERE \"CS_ID\" = '{}'".format(i[6])
+            update_command = 'UPDATE "Building" SET "Currently_listed" = true WHERE "CS_ID" = \'{}\''.format(i[6])
             cur.execute(update_command)
         conn.commit()  #ensure that changes are updated to the database
         cur.close()
-        #
-        ###TODO Check to see if listing are still on loopnet.  This can be done through getting the url and finding if the listing is still active?  Other ideas.
-        #
+
         cur = conn.cursor()
         print('PostgreSQL database version:')# execute a statement
         cur.execute('SELECT version()')

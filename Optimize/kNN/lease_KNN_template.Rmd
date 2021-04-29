@@ -1,0 +1,96 @@
+---
+title: "lease_knn_template"
+author: "Benjamin Pope"
+date: "4/27/2021"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(odbc)
+```
+Build model and data cleaning functions to copy to r script.  
+
+```{r}
+# Connect to database
+
+con <- DBI::dbConnect(odbc::odbc(),
+  driver = "PostgreSQL Unicode(x64)",
+  database = "TEST",
+  UID      = rstudioapi::askForPassword("Database user"),
+  PWD      = rstudioapi::askForPassword("Database password"),
+  server = "greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com",
+  port = 5432)
+```
+
+```{r}
+import_querry <- dbGetQuery(con,'SELECT  b."CS_ID",BS."Score", b."City", b."Property_Type", b."SquareFeet", b."Price_monthly", b."Expansion_sqft", b."Condition", b."Available", b."Term"
+FROM "Building" b
+LEFT JOIN "Building_Score" BS on b."CS_ID" = BS.cs_id
+WHERE "Sale_Lease" = \'Lease\'')
+
+lease_df <- import_querry
+```
+
+Things to consider:
+  1.NA values
+    expansion sqft
+    price
+  2.ensure integer are double precision
+    done in SQL import, or r?
+  3.dummy variables
+    which ones are necessary for MVP?
+      choose from (city, property_type, conidition, avaliable, term)
+    How to handle edge cases / new categories for each variable
+      function to analyze and sort variables
+      cutoff point for variables (example, city has 3 variables: Tacoma, Puyallup, other)
+  4.ensure columns will remain in order
+    must lock dummy variable length *OR* ensure columns match for train to validate.
+    
+
+```{r}
+#  *MAY CHANGE*  We can see if expansion square feet should retain origian values, or just be marked as an option.
+lease_df$Expansion_sqft <- ifelse(is.na(lease_df$Expansion_sqft),0,1)
+# TODO look into alternative way to handle missing prices (high value, mean) and see if we can eliminate them higher up the data pipeline.
+lease_df$Price_monthly <- ifelse(is.na(lease_df$Price_monthly),0,lease_df$Price_monthly)
+```
+
+
+```{r}
+# Dummy variables with Property Type
+lease_df$Property_Type
+pt_office <- '(Office|office)'
+pt_mixed <- '/'
+#Start with flex to change properties that have office so that we don't double dip.
+
+lease_df$Property_Type <- ifelse(grepl(pt_mixed,lease_df$Property_Type),'Flex',lease_df$Property_Type)
+lease_df$Property_Type <- ifelse(grepl(pt_office,lease_df$Property_Type),'Office',lease_df$Property_Type)
+
+as.factor(lease_df$Property_Type)[1]
+```
+
+```{r}
+# Dummy Variables with condition 
+as.factor(lease_df$Condition)
+```
+
+```{r}
+# Dummy variable with avaliable
+as.factor(lease_df$Available)
+ava_now <- "(Now|now)"
+ava_30to120 <- "(30 Days|60 Days|90 Days|120 Days)"
+ava_other <- "TBD"
+ava_date <- "[0-9]$"
+
+lease_df$Available <- ifelse(grepl(ava_now,lease_df$Available),'Now',lease_df$Available)
+lease_df$Available <- ifelse(grepl(ava_30to120,lease_df$Available),'30-120_Days',lease_df$Available)
+
+lease_df$Available <- ifelse(grepl(ava_date,lease_df$Available),"Other",lease_df$Available)
+lease_df$Available <- ifelse(grepl(ava_other,lease_df$Available),"Other",lease_df$Available)
+
+lease_df$Available
+```
+

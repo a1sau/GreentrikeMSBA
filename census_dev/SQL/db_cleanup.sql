@@ -27,3 +27,47 @@ and r."SquareFeet" is not null;
 update "Building"
 
 select * from result5
+
+
+create table "ETL_Building"
+(
+	"Address_Line" varchar,
+	"City" varchar,
+	"State" varchar,
+	"Postal_Code" varchar,
+	"Property_Type" varchar,
+	bg_geo_id varchar,
+	"CS_ID" varchar not null,
+	url varchar,
+	"Price" double precision,
+	"SquareFeet" double precision,
+	"Building_Class" varchar,
+	"Year_Built" varchar,
+	"Sale_Type" varchar,
+	"Picture_url" varchar,
+	"Upload_Date" date,
+	"Currently_listed" boolean,
+	"Sale_Lease" varchar,
+	"old_CS_ID" varchar,
+	"Price_monthly" double precision,
+	"Price_yearly" double precision,
+	"Expansion_sqft" double precision,
+	"Space" varchar,
+	"Condition" varchar,
+	"Available" varchar,
+	"Term" varchar
+);
+
+alter table "Building" owner to postgres;
+
+grant insert, select, update, delete, truncate, references, trigger on "Building" to public;
+
+grant insert, select, update, delete, truncate, references, trigger on "Building" to aneims;
+
+grant insert, select, update, delete, truncate, references, trigger on "Building" to bpope;
+
+grant insert, select, update, delete, truncate, references, trigger on "Building" to dbliler;
+
+grant insert, select, update, delete, truncate, references, trigger on "Building" to eotanez;
+
+grant insert, select, update, delete, truncate, references, trigger on "Building" to mmelgare;

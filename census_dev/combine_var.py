@@ -80,7 +80,13 @@ def getConn():
         print('Database could not be connected to:')
         print(e)
         return None
-
+    #set timezone as AWS defaults to UTC
+    cur=conn.cursor()
+    sql_command="set TIMEZONE='US/Pacific'"
+    try:
+        cur.execute(sql_command)
+    except Exception as e:
+        print("Could not set timezone:",e)
     return conn
 
 #Function to create csv for combining data for variable list across blockgroups
