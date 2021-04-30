@@ -1,3 +1,15 @@
+---
+title: "for sale Building_KNN_Model"
+author: "Benjamin Pope"
+date: "4/29/2021"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
 library(DBI)
 library(odbc)
 library(data.table)
@@ -5,20 +17,22 @@ library(caret)
 library(FNN)
 library(class)
 library(psych)
+```
 
+```{r}
 get_data <- function(scored_or_new, server, user, password, database,model_number){
   library(odbc)
   scored_sale_buildings = 'SELECT b."CS_ID", BS."Score", b."City", b."Property_Type", b."SquareFeet", b."Price", b."Building_Class", b."Sale_Type" FROM "Building" b RIGHT JOIN "Building_Score" BS on b."CS_ID" = BS.cs_id WHERE "Sale_Lease" = \'Sale\';'
-  
+
   new_sale_buildings = 'SELECT b."CS_ID", BS."Score", b."City", b."Property_Type", b."SquareFeet", b."Price", b."Building_Class", b."Sale_Type" FROM "Building" b LEFT JOIN "Building_Score" BS on b."CS_ID" = BS.cs_id WHERE "Sale_Lease" = \'Sale\' AND BS."Score" IS null;'
-  
+
   con <- DBI::dbConnect(odbc::odbc(),
-                        driver = "PostgreSQL Unicode(x64)",
-                        database = as.character(database),
-                        UID      = as.character(user),
-                        PWD      = as.character(password),
-                        server = as.character(server),
-                        port = 5432)
+    driver = "PostgreSQL Unicode(x64)",
+    database = as.character(database),
+    UID      = as.character(user),
+    PWD      = as.character(password),
+    server = as.character(server),
+    port = 5432)
   if(scored_or_new == 'scored'){
     df <- dbGetQuery(con,scored_sale_buildings)
   }
@@ -27,7 +41,17 @@ get_data <- function(scored_or_new, server, user, password, database,model_numbe
   }
   return (df)
 }
+```
 
+```{r}
+#Get list of building that have scores for them 
+building.scores <- get_data('scored',"greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com","bpope","somepassword","TEST")
+
+new.buildings <- get_data('new',"greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com","bpope","somepassword","TEST")
+
+```
+
+```{r}
 clean_sale_data <- function(dataframe){
   #Look at and clean data
   build.scores <- dataframe
@@ -79,12 +103,77 @@ clean_sale_data <- function(dataframe){
   final_sale_df <- cbind(build.scores[,c(1:2,5:6)],city,property_type,build_class,sale_type)
   return(final_sale_df)
 }
+```
 
-for_sale_KNN <- function(clean_scored_buildings, clean_new_buildings, K){
-  knn.pred.new<- class::knn(train = clean_scored_buildings[,3:17], test = clean_new_buildings[,3:17], cl = clean_scored_buildings[,2],k=K)
+```{r}
+clean_scored_data <- clean_sale_data(building.scores)
+
+clean_new_data <- clean_sale_data(new.buildings)
+```
+
+```{r}
+find_best_knn <- function(train_dataframe,valid_dataframe){
+  k.num = nrow(train.df)
+  build.accuracy.df <- data.frame(k = seq(1, k.num, 1), accuracy = rep(0, k.num))
+# compute knn for different k on validation.
+  for(i in 1:k.num) {
+    knn.pred<- class::knn(train = train.df[,3:17], test = valid.df[,3:17], cl = train.df[,2],k=i)
+  
+    build.accuracy.df[i,2] <- confusionMatrix(knn.pred, valid.df$Score)$overall[1]
+  }
+  return(build.accuracy.df)
+}
+```
+
+```{r}
+#Split scored data
+train_index <- sample(row.names(clean_scored_data),0.7*dim(clean_scored_data)[1])
+valid_index <- setdiff(row.names(clean_scored_data), train_index)
+train.df <- clean_scored_data[train_index,]
+valid.df <- clean_scored_data[valid_index,]
+
+temp.df <-find_best_knn(train.df,valid.df)
+order(-temp.df$accuracy)[1:3]
+```
+
+```{r}
+trials = 100
+t.df <- data.frame(first = rep(0,trials),second = rep(0,trials), third = rep(0,trials))
+for(i in 1:trials){
+  train_index <- sample(row.names(clean_scored_data),0.7*dim(clean_scored_data)[1])
+  valid_index <- setdiff(row.names(clean_scored_data), train_index)
+  train.df <- clean_scored_data[train_index,]
+  valid.df <- clean_scored_data[valid_index,]
+
+  temp.df <-find_best_knn(train.df,valid.df)
+  t.df[i,1] <- order(-temp.df$accuracy)[1]
+  t.df[i,2] <- order(-temp.df$accuracy)[2]
+  t.df[i,3] <- order(-temp.df$accuracy)[3]
+}
+t.df
+```
+
+```{r}
+hist(t.df[,1],breaks = nrow(train.df))
+hist(t.df[,2],breaks = nrow(train.df))
+hist(t.df[,3],breaks = nrow(train.df))
+```
+
+
+```{r}
+#Run KNN on new records
+for_sale_KNN <- function(scored_buildings, new_buildings, K){
+  knn.pred.new<- class::knn(train = scored_buildings[,3:17], test = new_buildings[,3:17], cl = scored_buildings[,2],k=K)
   return(knn.pred.new)
 }
+```
 
+```{r}
+knn.scores <- for_sale_KNN(clean_scored_data, clean_new_data,1)
+```
+
+
+```{r}
 #Create Dataframe for dynamic export
 create_output <- function(predicted_values, original_dataframe, model_name){
   outscore <- as.data.frame(predicted_values)
@@ -95,17 +184,10 @@ create_output <- function(predicted_values, original_dataframe, model_name){
   setnames(output, (c( "CS_ID", "model_id", "score", "date_calculated")))
   return (output)
 }
+```
 
-#Get list of building that have scores for them 
-building.scores <- get_data('scored',"greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com","bpope","somepassword","TEST")
-
-new.buildings <- get_data('new',"greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com","bpope","somepassword","TEST")
-
-clean_scored_data <- clean_sale_data(building.scores)
-clean_new_data <- clean_sale_data(new.buildings)
-
-sale_knn <- for_sale_KNN(clean_scored_buildings = clean_scored_data, clean_new_buildings = clean_new_data, K=5)
-
-create_output(sale_knn, clean_new_data, 'for_sale_KNN')
+```{r}
+create_output(knn.scores, 'For_sale_KNN')
+```
 
 
