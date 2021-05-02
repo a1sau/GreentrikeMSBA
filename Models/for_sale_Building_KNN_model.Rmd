@@ -112,7 +112,7 @@ clean_new_data <- clean_sale_data(new.buildings)
 ```
 
 ```{r}
-find_best_knn <- function(train_dataframe,valid_dataframe){
+find_best_knn <- function(train.df,valid.df){
   k.num = nrow(train.df)
   build.accuracy.df <- data.frame(k = seq(1, k.num, 1), accuracy = rep(0, k.num))
 # compute knn for different k on validation.
@@ -126,19 +126,8 @@ find_best_knn <- function(train_dataframe,valid_dataframe){
 ```
 
 ```{r}
-#Split scored data
-train_index <- sample(row.names(clean_scored_data),0.7*dim(clean_scored_data)[1])
-valid_index <- setdiff(row.names(clean_scored_data), train_index)
-train.df <- clean_scored_data[train_index,]
-valid.df <- clean_scored_data[valid_index,]
-
-temp.df <-find_best_knn(train.df,valid.df)
-order(-temp.df$accuracy)[1:3]
-```
-
-```{r}
 trials = 100
-t.df <- data.frame(first = rep(0,trials),second = rep(0,trials), third = rep(0,trials))
+t.df <- data.frame(first = rep(0,trials),second = rep(0,trials),third = rep(0,trials))
 for(i in 1:trials){
   train_index <- sample(row.names(clean_scored_data),0.7*dim(clean_scored_data)[1])
   valid_index <- setdiff(row.names(clean_scored_data), train_index)
@@ -150,7 +139,6 @@ for(i in 1:trials){
   t.df[i,2] <- order(-temp.df$accuracy)[2]
   t.df[i,3] <- order(-temp.df$accuracy)[3]
 }
-t.df
 ```
 
 ```{r}
@@ -161,17 +149,23 @@ hist(t.df[,3],breaks = nrow(train.df))
 
 
 ```{r}
-#Run KNN on new records
-for_sale_KNN <- function(scored_buildings, new_buildings, K){
+#Run KNN on new records and get output data frame.
+for_sale_KNN_model <- function(scored_buildings, new_buildings, K){
   knn.pred.new<- class::knn(train = scored_buildings[,3:17], test = new_buildings[,3:17], cl = scored_buildings[,2],k=K)
-  return(knn.pred.new)
+  outscore <- as.data.frame(knn.pred.new)
+  cs_id <- new_buildings$CS_ID
+  model_number <- utils::capture.output(cat("for_sale_KNN_",K,sep =""))
+  date <- Sys.Date()
+  output <- cbind(cs_id,model_number,outscore,date)
+  setnames(output, (c( "CS_ID", "model_id", "score", "date_calculated")))
+  return (output)
 }
 ```
 
 ```{r}
-knn.scores <- for_sale_KNN(clean_scored_data, clean_new_data,1)
+for.sale.knn.scores <- for_sale_KNN_model(clean_scored_data, clean_new_data,2)
+for.sale.knn.scores
 ```
-
 
 ```{r}
 #Create Dataframe for dynamic export
@@ -185,9 +179,3 @@ create_output <- function(predicted_values, original_dataframe, model_name){
   return (output)
 }
 ```
-
-```{r}
-create_output(knn.scores, 'For_sale_KNN')
-```
-
-

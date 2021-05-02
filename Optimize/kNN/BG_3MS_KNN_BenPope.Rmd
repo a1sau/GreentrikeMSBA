@@ -51,15 +51,7 @@ WHERE variable_id LIKE \'%_3MS\';'
 }
 
 #Create Dataframe for dynamic export
-create_output <- function(predicted_values,original_dataframe, model_name){
-  outscore <- as.data.frame(predicted_values)
-  bg_geo_id <- original_dataframe$bg_geo_id
-  model_number <- model_name
-  date <- Sys.Date()
-  output <- cbind(bg_geo_id, model_number, outscore, date)
-  setnames(output, (c( "bg_geo_id", "model_id", "score", "date_calculated")))
-  return (output)
-}
+
 
 reshape_census <- function(dataframe){
   if (dim(dataframe)[2] == 4){
@@ -96,10 +88,25 @@ find_best_knn <- function(train_dataframe,valid_dataframe){
   }
   return(census.accuracy.df)
 }
+create_output <- function(predicted_values,original_dataframe, model_name){
+  outscore <- as.data.frame(predicted_values)
+  bg_geo_id <- original_dataframe$bg_geo_id
+  model_number <- model_name
+  date <- Sys.Date()
+  output <- cbind(bg_geo_id, model_number, outscore, date)
+  setnames(output, (c( "bg_geo_id", "model_id", "score", "date_calculated")))
+  return (output)
+}
 
 census_KNN <- function(scored_bg, new_bg, K){
   knn.pred.new<- class::knn(train = scored_bg[,3:26], test = new_bg[,2:25], cl = scored_bg[,2],k=K)
-  return(knn.pred.new)
+  outscore <- as.data.frame(knn.pred.new)
+  bg_geo_id <- new_bg$bg_geo_id
+  model_number <- utils::capture.output(cat("for_sale_KNN_",K,sep =""))
+  date <- Sys.Date()
+  output <- cbind(bg_geo_id, model_number, outscore, date)
+  setnames(output, (c( "bg_geo_id", "model_id", "score", "date_calculated")))
+  return (output)
 }
 ```
 
@@ -120,11 +127,9 @@ bg.new.3ms <- reshape_census(bg.new.3ms.raw)
 bg.scored.3ms.norm <- norm_data(bg.scored.3ms)
 bg.new.3ms.norm <- norm_data(bg.new.3ms)
 
-#Run the predictions
-census.scores.knn <- census_KNN(bg.scored.3ms.norm,bg.new.3ms.norm,4)
-
-#Create an output
-create_output(census.scores.knn, bg.new.3ms.norm, "Census_KNN_5")
+#Run the predictions and get an output
+census.scores.knn <- census_KNN(bg.scored.3ms.norm,bg.new.3ms.norm,1)
+census.scores.knn
 
 ```
 

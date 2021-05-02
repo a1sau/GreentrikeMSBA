@@ -79,19 +79,14 @@ clean_sale_data <- function(dataframe){
   final_sale_df <- cbind(build.scores[,c(1:2,5:6)],city,property_type,build_class,sale_type)
   return(final_sale_df)
 }
-
-for_sale_KNN <- function(clean_scored_buildings, clean_new_buildings, K){
-  knn.pred.new<- class::knn(train = clean_scored_buildings[,3:17], test = clean_new_buildings[,3:17], cl = clean_scored_buildings[,2],k=K)
-  return(knn.pred.new)
-}
-
-#Create Dataframe for dynamic export
-create_output <- function(predicted_values, original_dataframe, model_name){
-  outscore <- as.data.frame(predicted_values)
-  cs_id <- original_dataframe$CS_ID
-  model_number <- model_name
+#This Takes the scored buildings data set (once standardized, normalized and cleaned) the new buildings dataset (once standardized, normalized and cleaned) and produces an output dataset with the information needed for importing to the Building_Model_Score table.
+for_sale_KNN_model <- function(scored_buildings, new_buildings, K){
+  knn.pred.new<- class::knn(train = scored_buildings[,3:17], test = new_buildings[,3:17], cl = scored_buildings[,2],k=K)
+  outscore <- as.data.frame(knn.pred.new)
+  cs_id <- new_buildings$CS_ID
+  model_number <- utils::capture.output(cat("for_sale_KNN_",K,sep =""))
   date <- Sys.Date()
-  output <- cbind(cs_id, model_number, outscore, date)
+  output <- cbind(cs_id,model_number,outscore,date)
   setnames(output, (c( "CS_ID", "model_id", "score", "date_calculated")))
   return (output)
 }
@@ -104,8 +99,8 @@ new.buildings <- get_data('new',"greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws
 clean_scored_data <- clean_sale_data(building.scores)
 clean_new_data <- clean_sale_data(new.buildings)
 
-sale_knn <- for_sale_KNN(clean_scored_buildings = clean_scored_data, clean_new_buildings = clean_new_data, K=5)
+sale_knn <- for_sale_KNN(clean_scored_data, clean_new_data, K=2)
 
-create_output(sale_knn, clean_new_data, 'for_sale_KNN')
+sale_knn
 
 
