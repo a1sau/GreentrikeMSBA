@@ -1,0 +1,318 @@
+---
+title: "BG_3MS_KNN"
+author: "Benjamin Pope"
+date: "3/4/2021"
+output: word_document
+---
+
+```{r}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(DBI)
+library(odbc)
+library(data.table)
+library(caret)
+library(FNN)
+library(class)
+library(psych)
+```
+
+```{r}
+#SQL query to get data frames for either "scored" or "new" block groups 
+get_data <- function(scored_or_new, server, user, password, database,model_number){
+  library(odbc)
+  bg.scored.3ms.raw = 'SELECT BGD.bg_geo_id, BGD.variable_id, BGD.Value, round((select avg(bgs.score) from "BG_Score" as BGS where BGS.bg_geo_id=BGD.bg_geo_id)) as score
+FROM "BG_Data" BGD
+RIGHT JOIN "BG_Score" BGS ON BGS.bg_geo_id = BGD.bg_geo_id
+JOIN "Block_Group" BG on BGD.bg_geo_id = BG.bg_geo_id
+WHERE variable_id LIKE \'%_3MS\';'
+
+  bg.new.3ms.raw = 'SELECT BGD.bg_geo_id, BGD.variable_id, BGD.Value
+                    FROM "BG_Data" BGD
+                    LEFT JOIN "BG_Score" BGS on BGD.bg_geo_id = BGS.bg_geo_id
+                    JOIN "Block_Group" BG on BGD.bg_geo_id = BG.bg_geo_id
+                    WHERE BGS.bg_geo_id IS NULL AND variable_id LIKE \'%_3MS\';'
+
+  con <- DBI::dbConnect(odbc::odbc(),
+    driver = "PostgreSQL Unicode(x64)",
+    database = as.character(database),
+    UID      = as.character(user),
+    PWD      = as.character(password),
+    server = as.character(server),
+    port = 5432)
+  if(scored_or_new == 'scored'){
+    df <- dbGetQuery(con,bg.scored.3ms.raw)
+  }
+  if(scored_or_new == 'new'){
+    df <- dbGetQuery(con,bg.new.3ms.raw)
+  }
+  return (df)
+}
+# Uses dcast to un-melt the census data and turn it back to its horizontal format for analysis
+reshape_census <- function(dataframe){
+  if (dim(dataframe)[2] == 4){
+    df <- reshape2::dcast(dataframe, bg_geo_id + score ~ variable_id, fun.aggregate = mean)
+  }
+  if (dim(dataframe)[2]==3){
+    df<- reshape2::dcast(dataframe, bg_geo_id ~ variable_id, fun.aggregate = mean)
+  }
+  return(df)
+}
+
+#Clean census data and normalizes based on if its scored or new data
+norm_data <- function(dataframe){
+  if(dim(dataframe)[2] == 26){
+    norm.values <- caret::preProcess(dataframe[,3:dim(dataframe)[2]], method = c("center","scale"))
+    dataframe[,3:dim(dataframe)[2]] <- stats::predict(norm.values, dataframe[,3:dim(dataframe)[2]])
+    dataframe$score <- as.factor(dataframe$score)
+    }
+  if(dim(dataframe)[2] == 25){
+    norm.values <- caret::preProcess(dataframe[,2:dim(dataframe)[2]], method = c("center","scale"))
+    dataframe[,2:dim(dataframe)[2]] <- stats::predict(norm.values, dataframe[,2:dim(dataframe)[2]])
+    } 
+  return(dataframe)
+}
+#function to run model on new data and create output data frame. 
+census_KNN_model <- function(scored_bg, new_bg, K){
+  knn.pred.new<- class::knn(train = scored_bg[,3:26], test = new_bg[,2:25], cl = scored_bg[,2],k=K)
+  outscore <- as.data.frame(knn.pred.new)
+  bg_geo_id <- new_bg$bg_geo_id
+  model_number <- 14 #utils::capture.output(cat("for_sale_KNN_",K,sep =""))
+  date <- Sys.Date()
+  output <- cbind(bg_geo_id, model_number, outscore, date)
+  setnames(output, (c( "bg_geo_id", "model_id", "score", "date_calculated")))
+  return (output)
+}
+
+#returns a df of the accuracy associated with each K. Requires a train.df and valid.df ran through reshape_census() and norm_data()
+get_accuracy<- function(train.df,valid.df){
+  #TODO either 15 or half the training rows (round if divide)
+  k.num = nrow(train.df)
+  if (nrow(train.df) >= 30){
+    k.num <- 20
+  } else {
+    k.num <- ceiling(nrow(train.df)/2)
+  }
+  build.accuracy.df <- data.frame(k = seq(1, k.num, 1), accuracy = rep(0, k.num))
+# compute knn for different k on validation.
+  for(i in 1:k.num) {
+    knn.pred<- class::knn(train = train.df[,3:26], test = valid.df[,3:26], cl = train.df[,2],k=i)
+  
+    build.accuracy.df[i,2] <- confusionMatrix(knn.pred, valid.df$score)$overall[1] ##IMPORTANT NOTE## score is undercase in cencsus and Title case (Score) in building data.  
+  }
+  return(build.accuracy.df)
+}
+
+#Takes in the scored dataset and returns the optimal value for K. This requires the function get_accuracy()
+find_best_knn<- function(clean_scored_data){
+  trials = 100
+  t.df <- data.frame(first = rep(0,trials),second = rep(0,trials), third = rep(0,trials))
+  for(i in 1:trials){
+    train_index <- sample(row.names(clean_scored_data),0.7*dim(clean_scored_data)[1])
+    valid_index <- setdiff(row.names(clean_scored_data), train_index)
+    train.df <- clean_scored_data[train_index,]
+    valid.df <- clean_scored_data[valid_index,]
+  
+    temp.df <-get_accuracy(train.df,valid.df)
+    t.df[i,1] <- order(-temp.df$accuracy)[1]
+    t.df[i,2] <- order(-temp.df$accuracy)[2]
+    t.df[i,3] <- order(-temp.df$accuracy)[3]
+  }
+  a <-table(t.df$first)*4
+  b <- table(t.df$second)*2
+  n <- intersect(names(a), names(b)) 
+  res <- c(a[!(names(a) %in% n)], b[!(names(b) %in% n)], a[n] + b[n])
+  answer <-res[order(-res)][1]
+  return(as.numeric(names(answer)))
+}
+
+# Our main function to run all the sub-functions and produce a scored data frame
+main_census_knn <- function(user, password, server, database){
+  #Get the data from the database
+  bg.scored.3ms.raw <- get_data('scored',as.character(server),as.character(user),as.character(password),as.character(database))
+  bg.new.3ms.raw <- get_data('new',as.character(server),as.character(user),as.character(password),as.character(database))
+  #un-melt the data 
+  bg.scored.3ms <- reshape_census(bg.scored.3ms.raw)
+  bg.new.3ms <- reshape_census(bg.new.3ms.raw)
+  #normalize the data
+  bg.scored.3ms.norm <- norm_data(bg.scored.3ms)
+  bg.new.3ms.norm <- norm_data(bg.new.3ms)
+  #Run the model on the new data and get output
+  census.scored.knn <- census_KNN_model(bg.scored.3ms.norm, bg.new.3ms.norm, find_best_knn(bg.scored.3ms.norm))
+  return(census.scored.knn)
+}
+```
+
+```{r}
+#Get list of building that have scores for them 
+main_census_knn("bpope","somepassword","greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com","TEST")
+```
+```{r}
+
+#USED FOR TESTING PURPOSES 
+  bg.scored.3ms.raw <- get_data('scored',"greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com","bpope","somepassword","TEST")
+  bg.new.3ms.raw <- get_data('new',"greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com","bpope","somepassword","TEST")
+  #un-melt the data 
+  bg.scored.3ms <- reshape_census(bg.scored.3ms.raw)
+  bg.new.3ms <- reshape_census(bg.new.3ms.raw)
+  #normalize the data
+  bg.scored.3ms.norm <- norm_data(bg.scored.3ms)
+  bg.new.3ms.norm <- norm_data(bg.new.3ms)
+  
+  find_best_knn(bg.scored.3ms.norm)
+```
+
+
+```{r}
+#unmelt the data back together
+bg.scored.3ms <- reshape_census(bg.scored.3ms.raw)
+bg.new.3ms <- reshape_census(bg.new.3ms.raw)
+
+#normalize the data
+bg.scored.3ms.norm <- norm_data(bg.scored.3ms)
+bg.new.3ms.norm <- norm_data(bg.new.3ms)
+
+#Run the predictions and get an output
+census.scores.knn <- census_KNN(bg.scored.3ms.norm,bg.new.3ms.norm,1)
+census.scores.knn
+
+```
+
+```{r}
+trials = 100
+t.df <- data.frame(first = rep(0,trials),second = rep(0,trials), third = rep(0,trials))
+for(i in 1:trials){
+  train.index <- sample(row.names(bg.scored.3ms.norm),0.6*dim(bg.scored.3ms.norm)[1])
+  valid.index <- setdiff(row.names(bg.scored.3ms.norm), train.index)
+  train.df <- bg.scored.3ms.norm[train.index,]
+  valid.df <- bg.scored.3ms.norm[valid.index,]
+  
+  temp.df <-find_best_knn(train.df,valid.df)
+  t.df[i,1] <- order(-temp.df$accuracy)[1]
+  t.df[i,2] <- order(-temp.df$accuracy)[2]
+  t.df[i,3] <- order(-temp.df$accuracy)[3]
+}
+t.df
+```
+
+
+```{r}
+### Looks like k = is the highest consistency 
+knn.model <- class::knn(train = train.df[,3:19], test = valid.df[,3:19], cl = train.df[,2],k =8)
+confusionMatrix(as.factor(knn.model), as.factor(valid.df$`Average.Block.Group.Score`))
+str(valid.df)
+
+RMSE(as.numeric(knn.model), valid.df[,2])
+
+```
+
+```{r}
+#Normalize and prepare entire scored set 
+census.norm.scores <- rbind(train.df, valid.df)
+census.norm.scores
+```
+
+```{r}
+
+min.max.norm <- function(x) {
+  (x - min(x)) / (max(x) - min(x))
+}
+
+for (i in 2:length(new.census.scores)) {
+  new.census.scores[i] <- min.max.norm(new.census.scores[i])
+}
+
+new.census.scores
+```
+
+```{r}
+# Predict new records for 
+
+#Set test name
+model_id ="3MS_KNN_v.3"
+
+knn.model <- class::knn(train = train.df[,3:19], test = valid.df[,3:19], cl = train.df[,2],k =4)
+knn.pred.new <- class::knn(train = census.norm.scores[,3:19], test = new.census.scores[,3:19], cl = census.norm.scores[,2] ,k=8)
+summary(knn.pred.new)
+knn.model
+```
+
+```{r}
+### Set up output file
+
+new.census.export$Score.Predict <- knn.pred.new
+new.census.export
+
+write.csv(new.census.export,"D:/Templates/UW Stuff/Classes/MSBA/Classes/Q4 Models/Tuning/kNN\\bg_KNN_output_v.3.csv",row.names = FALSE)
+```
+
+
+```{r}
+import.census <- dbGetQuery(con, 'select
+     bg.bg_geo_id "Block Group ID"
+     ,(select avg(bgs.score) from "BG_Score" as bgs where bgs.bg_geo_id=bg.bg_geo_id) "Average Block Group Score"
+     ,max(case when dv.sid=\'pop\' then bgd.value Else 0 END) "Population"
+     ,max(case when dv.sid=\'pop_MF_3MS\' then bgd.value Else 0 END) "Population: 3 Mile"
+     ,max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) "Households: 3 Mile"
+    ,max(case when dv.sid=\'M_0_5\' then bgd.value Else 0 END)+max(case when dv.sid=\'F_0_5\' then bgd.value Else 0 END) "Kids under 5"
+     ,round(cast((max(case when dv.sid=\'M_0_5\' then bgd.value Else 0 END)+max(case when dv.sid=\'F_0_5\' then bgd.value Else 0 END)) /
+        max(case when dv.sid=\'pop\' then bgd.value Else null END) as numeric),3) "Percent Kids under 5"
+    ,max(case when dv.sid=\'M_0_5_3MS\' then bgd.value Else 0 END)+max(case when dv.sid=\'F_0_5_3MS\' then bgd.value Else 0 END) "Kids under 5: 3 Mile"
+     ,round(cast((max(case when dv.sid=\'M_0_5_3MS\' then bgd.value Else 0 END)+max(case when dv.sid=\'F_0_5_3MS\' then bgd.value Else 0 END)) /
+        max(case when dv.sid=\'pop_MF_3MS\' then bgd.value Else null END) as numeric),3) "Percent Kids under 5: 3 Mile"
+    ,max(case when dv.sid=\'M_5_9\' then bgd.value Else 0 END)+max(case when dv.sid=\'F_5_9\' then bgd.value Else 0 END) "Kids 5 to 9"
+     ,round(cast((max(case when dv.sid=\'M_5_9\' then bgd.value Else 0 END)+max(case when dv.sid=\'F_5_9\' then bgd.value Else 0 END)) /
+        max(case when dv.sid=\'pop\' then bgd.value Else null END) as numeric),3) "Percent Kids 5 to 9"
+    ,max(case when dv.sid=\'M_5_9_3MS\' then bgd.value Else 0 END)+max(case when dv.sid=\'F_5_9_3MS\' then bgd.value Else 0 END) "Kids 5 to 9: 3 Mile"
+    ,round(cast((max(case when dv.sid=\'M_5_9_3MS\' then bgd.value Else 0 END)+max(case when dv.sid=\'F_5_9_3MS\' then bgd.value Else 0 END)) /
+         max(case when dv.sid=\'pop_MF_3MS\' then bgd.value Else null END) as numeric),3)  "Percent Kids 5 to 9: 3 Mile"
+    ,max(case when dv.sid=\'avg_age\' then bgd.value Else 0 END) "Average Age"
+    ,round(cast(sum(case when dv.sid in(\'hi_0_10_3MS\',\'hi_10_15_3MS\',\'hi_15_20_3MS\',\'hi_20_25_3MS\',\'hi_25_30_3MS\',\'hi_30_35_3MS\',\'hi_35_40_3MS\') then bgd.value  else 0 END) /
+      max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) as numeric),3) "Household income under 40K: 3 Mile"
+    ,round(cast(sum(case when dv.sid in(\'hi_40_45_3MS\',\'hi_45_50_3MS\') then bgd.value  else 0 END) /
+      max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) as numeric),3) "Household income 40K to 50K: 3 Mile"
+    ,round(cast(sum(case when dv.sid in(\'hi_50_60_3MS\') then bgd.value  else 0 END) /
+      max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) as numeric),3) "Household income 50K to 60K: 3 Mile"
+    ,round(cast(sum(case when dv.sid in(\'hi_60_75_3MS\') then bgd.value  else 0 END) /
+      max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) as numeric),3) "Household income 60K to 75K: 3 Mile"
+    ,round(cast(sum(case when dv.sid in(\'hi_75_100_3MS\') then bgd.value  else 0 END) /
+      max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) as numeric),3) "Household income 75K to 100K: 3 Mile"
+    ,round(cast(sum(case when dv.sid in(\'hi_100_125_3MS\') then bgd.value  else 0 END) /
+      max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) as numeric),3) "Household income 100K to 125K: 3 Mile"
+    ,round(cast(sum(case when dv.sid in(\'hi_125_150_3MS\') then bgd.value  else 0 END) /
+      max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) as numeric),3) "Household income 125K to 150K: 3 Mile"
+    ,round(cast(sum(case when dv.sid in(\'hi_150_200_3MS\') then bgd.value  else 0 END) /
+      max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) as numeric),3) "Household income 150K to 200K: 3 Mile"
+    ,round(cast(sum(case when dv.sid in(\'hi_200_999_3MS\') then bgd.value  else 0 END) /
+      max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END) as numeric),3) "Household income 200K+: 3 Mile"
+from "Block_Group" as bg
+left join "BG_Data" as bgd on bg.bg_geo_id = bgd.bg_geo_id
+inner join "Demo_Var" as dv on dv.full_variable_id=bgd.variable_id
+group by bg.bg_geo_id
+having
+max(case when dv.sid=\'pop\' then bgd.value Else 0 END) > 0
+and max(case when dv.sid=\'hi_tot_3MS\' then bgd.value Else 0 END)>0')
+import.census
+```
+
+```{r}
+#We need to query the variables used for the score as well as the score from the DB
+
+census.scores <- sqldf('SELECT "Block Group ID" AS "Block.Group.ID", "Average Block Group Score" AS "Average.Block.Group.Score", Population, "Population: 3 Mile" AS "Population.3.Mile", "Households: 3 Mile" AS "Households.3.Mile", "Percent Kids under 5" AS "Percent.Kids.under.5", "Percent Kids under 5: 3 Mile" AS "Percent.Kids.under.5.3.Mile", "Percent Kids 5 to 9" AS "Percent.Kids.5.to.9", "Percent Kids 5 to 9: 3 Mile" AS "Percent.Kids.5.to.9.3 Mile", "Average Age" AS "Average.Age", "Household income under 40K: 3 Mile" AS "Household.income.under.40K.3Mile", "Household income 40K to 50K: 3 Mile" AS "Household.income.40K.to.50K.3.Mile", "Household income 50K to 60K: 3 Mile" AS "Household.income.50K.to.60K.3.Mile", "Household income 60K to 75K: 3 Mile" AS "Household.income.60K.to.75K.3.Mile", "Household income 75K to 100K: 3 Mile" AS "Household.income.75K.to.100K.3.Mile", "Household income 100K to 125K: 3 Mile" AS "Household.income.100:.125K.3.Mile", "Household income 125K to 150K: 3 Mile" AS "Household.income.125K.to.150K.3.Mile", "Household income 150K to 200K: 3 Mile" AS "Household.income.150K.to.200K.3.Mile", "Household income 200K+: 3 Mile"  AS "Household.income.200K+.3Mile"FROM "import.census" WHERE "Average Block Group Score" IS NOT NULL')
+
+census.scores
+#this is to make an export of the final model output
+census.export <- census.scores
+```
+
+```{r}
+#We need to query the variables used for the score as well as the score from the DB
+
+new.census.scores <- sqldf('SELECT "Block Group ID" AS "Block.Group.ID", "Average Block Group Score" AS "Average.Block.Group.Score", Population, "Population: 3 Mile" AS "Population.3.Mile", "Households: 3 Mile" AS "Households.3.Mile", "Percent Kids under 5" AS "Percent.Kids.under.5", "Percent Kids under 5: 3 Mile" AS "Percent.Kids.under.5.3.Mile", "Percent Kids 5 to 9" AS "Percent.Kids.5.to.9", "Percent Kids 5 to 9: 3 Mile" AS "Percent.Kids.5.to.9.3 Mile", "Average Age" AS "Average.Age", "Household income under 40K: 3 Mile" AS "Household.income.under.40K.3Mile", "Household income 40K to 50K: 3 Mile" AS "Household.income.40K.to.50K.3.Mile", "Household income 50K to 60K: 3 Mile" AS "Household.income.50K.to.60K.3.Mile", "Household income 60K to 75K: 3 Mile" AS "Household.income.60K.to.75K.3.Mile", "Household income 75K to 100K: 3 Mile" AS "Household.income.75K.to.100K.3.Mile", "Household income 100K to 125K: 3 Mile" AS "Household.income.100:.125K.3.Mile", "Household income 125K to 150K: 3 Mile" AS "Household.income.125K.to.150K.3.Mile", "Household income 150K to 200K: 3 Mile" AS "Household.income.150K.to.200K.3.Mile", "Household income 200K+: 3 Mile"  AS "Household.income.200K+.3Mile"FROM "import.census" WHERE "Average Block Group Score" IS NULL')
+
+new.census.scores
+#this is to make an export of the final model output
+new.census.export <- new.census.scores
+```
