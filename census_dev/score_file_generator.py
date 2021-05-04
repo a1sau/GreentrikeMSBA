@@ -110,6 +110,7 @@ def select_sale_building(conn,user='',limit=10):
     sql_command="""\
     select
     bld."CS_ID"
+    ,bld.url "URL"
     ,bld."Address_Line"
     ,bld."City"
     ,bld."Postal_Code"
@@ -227,6 +228,8 @@ def gen_sheet(workbook,df_var,format_dict,worksheet_name="Sheet"):
                 worksheet.write(xrow,xcol,row,format_dict["cell_dollar"])
             elif colnam in ('CS_ID','Block Group ID'):
                 worksheet.write(xrow,xcol,row,format_dict["cell_underline"])
+            elif colnam in ('URL'):
+                worksheet.write_url(xrow,xcol,row,string='Link')
             else:
                 worksheet.write(xrow,xcol,row)
     return workbook
