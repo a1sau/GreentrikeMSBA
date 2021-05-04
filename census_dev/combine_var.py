@@ -87,6 +87,7 @@ def getConn():
         cur.execute(sql_command)
     except Exception as e:
         print("Could not set timezone:",e)
+        return None
     return conn
 
 #Function to create csv for combining data for variable list across blockgroups
