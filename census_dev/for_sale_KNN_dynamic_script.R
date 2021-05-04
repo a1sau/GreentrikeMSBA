@@ -142,7 +142,7 @@ for_sale_KNN_model <- function(scored_buildings, new_buildings, K){
   setnames(output, (c( "CS_ID", "model_id", "score", "date_calculated")))
   return (output)
 }
-main_forsale_knn <- function(user, password, server, database){
+main_forsale_knn <- function(user, password, server, database, port){
   #Get data frame of scored buildings 
   building.scores <- get_data('scored',as.character(server),as.character(user),as.character(password),as.character(database))
   #Get data frame of new buildings
