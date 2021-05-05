@@ -108,6 +108,16 @@ def create_email(to_email,email,password,attachment_name=None):
         5. Once you send both spreadsheets back, our program will analyze your scores and utilize them to better train the model and provide you with properties that better match your criteria.
                     <br/>
                 </p>
+        <br/>
+        <br/>
+        If you want a new score spreadsheet send tomorrow rather than wait until the next scheduled file, click this 
+        <a href="mailto:msba.greentrike@gmail.com?subject=Send new scores"> link: </a> and send the email.
+        <br/>
+        
+        <br/><br/>
+        If you want to stop receiving emails, click this <a href="mailto:msba.greentrike@gmail.com?subject=Unsubscribe"> link: </a> and send the email.
+        <br/>
+        
           </body>
         </html>
         """.format(email)
