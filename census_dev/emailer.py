@@ -55,7 +55,7 @@ def create_email(to_email,email,password,attachment_name=None):
                 <p>Greentrike Property Finder
                     <br/>
                     <br/>
-         Purpose 
+         <b>Purpose</b> 
                     <br/>
                     <br/>
         This automated email focuses on providing GreenTrike with location options that our model has rated and selected based on your feedback.
