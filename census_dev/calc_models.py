@@ -25,7 +25,7 @@ def update_db_score(conn,df,model):
         for row in df[['CS_ID','score']].itertuples(index=False):
             cs_id=row[0]
             score=row[1]
-            print(cs_id,score)
+            print("Updating:",cs_id,score)
             if cs_id is None:
                 continue
             if score is None:
@@ -36,7 +36,7 @@ def update_db_score(conn,df,model):
             set score = excluded.score,
             date_calculated = excluded.date_calculated;
             """.format(cs_id,model,score)
-            print(sql_command)
+            # print(sql_command)
             cur.execute(sql_command)
         conn.commit()
     except Exception as e:
@@ -45,8 +45,9 @@ def update_db_score(conn,df,model):
     return True
 
 
-def main():
-    conn=getConn()
+def main(conn=None):
+    if conn is None:
+        conn=getConn()
     if conn is None:
         sys.exit("Failed to get SQL connection")
     if rg2.check_for_config():

@@ -367,10 +367,6 @@ def bg_score_etl_to_live(conn,cur):
     conn.commit()
     return True
 
-def recalc_models():
-    pass
-
-
 
 def main():
     conn=getConn()
@@ -389,7 +385,7 @@ def main():
         new_scores = check_email(email_config['email'],password,conn)
         if new_scores:
             update_user_scores(conn,'attachment','archive')
-            cm.main()   #recalculate model scores
+            cm.main(conn)   #recalculate model scores
     else:
         sys.exit("Configure ""config.ini"" before running script again.")
     conn.close()

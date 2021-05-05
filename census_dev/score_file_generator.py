@@ -335,8 +335,8 @@ def email_users_main():
         freq=user_line['email_frequency']
         last_email_dt=user_line['last_building_email']
         print(type(last_email_dt))
-        if freq is None:
-            freq=7
+        if (freq is None) or isnan(freq):
+            freq = 7
             update_user_frequency(conn,uid,freq)  #set default on server if missing
         time_for_email=False
         if user_line['last_building_email'] is None:  #email not previously sent
