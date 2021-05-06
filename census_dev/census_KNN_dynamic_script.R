@@ -14,13 +14,16 @@ get_data <- function(scored_or_new, server, user, password, database,model_numbe
                       RIGHT JOIN "BG_Score" BGS ON BGS.bg_geo_id = BGD.bg_geo_id 
                       JOIN "Block_Group" BG on BGD.bg_geo_id = BG.bg_geo_id 
                       WHERE variable_id LIKE \'%_3MS\';'
-  
   bg.new.3ms.raw = 'SELECT BGD.bg_geo_id, BGD.variable_id, BGD.Value
                     FROM "BG_Data" BGD
                     LEFT JOIN "BG_Score" BGS on BGD.bg_geo_id = BGS.bg_geo_id
                     JOIN "Block_Group" BG on BGD.bg_geo_id = BG.bg_geo_id
                     WHERE BGS.bg_geo_id IS NULL AND variable_id LIKE \'%_3MS\';'
-  
+  bg.all.3ms.raw = 'SELECT BGD.bg_geo_id, BGD.variable_id, BGD.Value
+                    FROM "BG_Data" BGD
+                    LEFT JOIN "BG_Score" BGS on BGD.bg_geo_id = BGS.bg_geo_id
+                    JOIN "Block_Group" BG on BGD.bg_geo_id = BG.bg_geo_id
+                    WHERE variable_id LIKE \'%_3MS\';'
   con <- DBI::dbConnect(odbc::odbc(),
                         driver = "PostgreSQL Unicode(x64)",
                         database = as.character(database),
@@ -33,6 +36,9 @@ get_data <- function(scored_or_new, server, user, password, database,model_numbe
   }
   if(scored_or_new == 'new'){
     df <- dbGetQuery(con,bg.new.3ms.raw)
+  }
+  if(scored_or_new == 'all'){
+    df <- dbGetQuery(con,bg.all.3ms.raw)
   }
   return (df)
 }
@@ -118,7 +124,7 @@ find_best_knn<- function(clean_scored_data){
 main_census_knn <- function(user, password, server, database){
   #Get the data from the database
   bg.scored.3ms.raw <- get_data('scored',as.character(server),as.character(user),as.character(password),as.character(database))
-  bg.new.3ms.raw <- get_data('new',as.character(server),as.character(user),as.character(password),as.character(database))
+  bg.new.3ms.raw <- get_data('all',as.character(server),as.character(user),as.character(password),as.character(database))
   #un-melt the data 
   bg.scored.3ms <- reshape_census(bg.scored.3ms.raw)
   bg.new.3ms <- reshape_census(bg.new.3ms.raw)

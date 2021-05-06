@@ -12,6 +12,7 @@ get_data <- function(scored_or_new, server, user, password, database){
   scored_sale_buildings = 'SELECT b."CS_ID", BS."Score", b."City", b."Property_Type", b."SquareFeet", b."Price", b."Building_Class", b."Sale_Type" FROM "Building" b RIGHT JOIN "Building_Score" BS on b."CS_ID" = BS.cs_id WHERE "Sale_Lease" = \'Sale\';'
   
   new_sale_buildings = 'SELECT b."CS_ID", BS."Score", b."City", b."Property_Type", b."SquareFeet", b."Price", b."Building_Class", b."Sale_Type" FROM "Building" b LEFT JOIN "Building_Score" BS on b."CS_ID" = BS.cs_id WHERE "Sale_Lease" = \'Sale\' AND BS."Score" IS null;'
+  all_sale_buildings = 'SELECT b."CS_ID", BS."Score", b."City", b."Property_Type", b."SquareFeet", b."Price", b."Building_Class", b."Sale_Type" FROM "Building" b LEFT JOIN "Building_Score" BS on b."CS_ID" = BS.cs_id WHERE "Sale_Lease" = \'Sale\';'
   con <- DBI::dbConnect(odbc::odbc(),
                         driver = "PostgreSQL Unicode(x64)",
                         database = as.character(database),
@@ -24,6 +25,9 @@ get_data <- function(scored_or_new, server, user, password, database){
   }
   if(scored_or_new == 'new'){
     df <- dbGetQuery(con,new_sale_buildings)
+  }
+  if(scored_or_new == 'all'){
+    df <- dbGetQuery(con,all_sale_buildings)
   }
   return (df)
 }
@@ -142,11 +146,11 @@ for_sale_KNN_model <- function(scored_buildings, new_buildings, K){
   setnames(output, (c( "CS_ID", "model_id", "score", "date_calculated")))
   return (output)
 }
-main_forsale_knn <- function(user, password, server, database, port){
+main_forsale_knn <- function(user, password, server, database){ 
   #Get data frame of scored buildings 
   building.scores <- get_data('scored',as.character(server),as.character(user),as.character(password),as.character(database))
   #Get data frame of new buildings
-  new.buildings <- get_data('new',as.character(server),as.character(user),as.character(password),as.character(database))
+  new.buildings <- get_data('all',as.character(server),as.character(user),as.character(password),as.character(database))
   #Clean scored buildings
   clean_scored_data <- clean_sale_data(building.scores)
   #Clean new buildings
