@@ -18,8 +18,8 @@ from datetime import datetime
 import re
 import pandas as pd
 import openpyxl
-import rpy2.robjects as robjects
-from rpy2.robjects import pandas2ri
+import calc_models as cm
+
 
 
 def create_email(to_email,email,password,attachment_name=None):
@@ -52,10 +52,62 @@ def create_email(to_email,email,password,attachment_name=None):
         html = """\
         <html>
           <body>
-            <p>Hi,<br>
-            Here is a score file for you to review. Save the file and fill in the scores.<br>
-            Once you are done, save the file with the same name and send it back to: {}<br>
-            </p>
+                <p>Greentrike Property Finder
+                    <br/>
+                    <br/>
+         <b>Purpose</b> 
+                    <br/>
+                    <br/>
+        This automated email focuses on providing GreenTrike with location options that our model has rated and selected based on your feedback.
+                    <br/>
+                    <br/>
+        In this email, you will find an attached excel workbook. The workbook will have two sheets: "Sale" and "Lease."
+                    <br/>
+                    <br/>
+        In these excel sheets, there are a few things that you will be doing. 
+                    <br/>
+                    <br/>
+         <b>Getting Started</b>
+                    <br/>
+                    <br/>
+        Once you receive the email, mouse-over the attachment in Gmail. You will see an icon that looks like a pencil.
+                    <br/>
+        Click this icon to open the spreadsheet in Google Sheets.
+                    <br/>
+        Once Google Sheets is open, you will be able to edit the file. The only rows you should edit will be highlighted in blue.
+                    <br/>
+        Those rows are labeled: "Building Score" and "Block Group Score".
+                    <br/>
+        Looking at properties
+                    <br/>
+                    <br/>
+         1. You can click on the links along with the associated location to go to Loopnet listing of the property for additional information.
+                    <br/>
+        2. Examine the property that is affiliated with the link. Does it match your criteria? How well does this property fit for your team in terms of a future location?
+                    <br/>
+        3. Rank how well it matches that criteria from 1-5 with 1 being a property you would never consider and 5 meaning you are very interested.
+                    <br/>
+        4. Along with the building score, the demographics of the area are included.
+        Once you have filled out the scoring row for the building, provide your score for the census area that the building is located. 
+                    <br/>
+        5. Once you have completed the "Sale" tab, go to the "Lease" tab and repeat the process. You are free to rate some or all of the listings.
+                    <br/>
+                    <br/>
+        In a coming update, there will be additional tabs that will show the model's predicted score for the properties you are rating.
+                    <br/>
+                    <br/>
+        Once you have finished scoring buildings and areas, you are ready to send the file back.
+                    <br/>
+        Go to the top left of your page and click on the File tab.
+                    <br/>
+        Scroll down to the email option (right above download)
+                    <br/>
+        Select "Reply with this file" and then select send.
+                    <br/>
+                    <br/>
+        5. Once you send both spreadsheets back, our program will analyze your scores and utilize them to better train the model and provide you with properties that better match your criteria.
+                    <br/>
+                </p>
           </body>
         </html>
         """.format(email)
@@ -315,10 +367,6 @@ def bg_score_etl_to_live(conn,cur):
     conn.commit()
     return True
 
-def recalc_models():
-    pass
-
-
 
 def main():
     conn=getConn()
@@ -337,6 +385,7 @@ def main():
         new_scores = check_email(email_config['email'],password,conn)
         if new_scores:
             update_user_scores(conn,'attachment','archive')
+            cm.main(conn)   #recalculate model scores
     else:
         sys.exit("Configure ""config.ini"" before running script again.")
     conn.close()
