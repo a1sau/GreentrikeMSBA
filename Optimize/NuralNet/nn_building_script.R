@@ -166,7 +166,7 @@ mainfunction <- function(server, user, password, database, port){
   return(scores.predict.scores)
 }
 
-mainfunction('greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com', 'eotanez', 's4I8$cPPRX5x', 'TEST', 5432)
+mainfunction('greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com', '', '', 'TEST', 5432)
 
 
 #setwd("D:/Templates/UW Stuff/Classes/MSBA/Classes/Q4 Models/Tuning/NuralNet")
