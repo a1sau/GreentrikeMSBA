@@ -97,58 +97,77 @@ having
   return("")
 }
 
+
 clean_building_data <- function(dataframe){
   build.scores <- dataframe
-  build.scores$Score <- as.factor(build.scores$Score)
+  #build.scores$Score <- as.factor(build.scores$Score)
   #dummy code catigorical variables
   build.scores <- fastDummies::dummy_cols(build.scores, select_columns = "City")
   build.scores <- fastDummies::dummy_cols(build.scores, select_columns = "Postal_Code")
   build.scores <- fastDummies::dummy_cols(build.scores, select_columns = "Property_Type")
   build.scores <- fastDummies::dummy_cols(build.scores, select_columns = "Sale_Type")
-  #subset the data so it does not contain any useless variables
-  building.scores <- subset(building.scores, select = -c(City, Postal_Code, Property_Type, 
-                                                         Year_Built, Sale_Type, Property_Type_IndustrialOfficeIndustrialLiveWorkUnit, 
-                                                         `Property_Type_OfficeOfficeGeneral Retail Convenience StoreGeneral Retail RestaurantGeneral Retail Storefront Retail/OfficeOffice`, 
-                                                         `Property_Type_OfficeOfficeGeneral Retail Daycare CenterGeneral Retail StorefrontGeneral Retail Storefront Retail/OfficeOffice`, 
-                                                         `Sale_Type_Investment NNN`, `Sale_Type_InvestmentorOwnerUser`, Sale_Type_OwnerUser))
-  #remove na's
-  build.scores <- na.omit(build.scores)
-  #normalize numeric variables
-  build.scores$Price <- (build.scores$Price - min(build.scores$Price))/(max(build.scores$Price) - min(build.scores$Price))
-  build.scores$SquareFeet <- (build.scores$SquareFeet - min(build.scores$SquareFeet))/(max(build.scores$SquareFeet) - min(build.scores$SquareFeet))
-  build.scores$`$ per sq ft` <- (build.scores$`$ per sq ft` - min(build.scores$`$ per sq ft`))/(max(build.scores$`$ per sq ft`) - min(build.scores$`$ per sq ft`))
-  build.scores$`Average Building Score` <- (build.scores$`Average Building Score` - min(build.scores$`Average Building Score`))/(max(build.scores$`Average Building Score`) - min(build.scores$`Average Building Score`))
-  #remove duplicates
-  #build.scores <- build.scores[!duplicated(build.scores[ , "Price"]),]
   #rename select columns for modeling purposes
   names(build.scores)[names(build.scores) == "$ per sq ft"] <- "price_per_sq_ft"
   names(build.scores)[names(build.scores) == "Sale_Type_Investment or Owner User"] <- "Sale_Type_Investment_or_Owner_User"
   names(build.scores)[names(build.scores) == "Sale_Type_Owner User"] <- "Sale_Type_Owner_User"
   names(build.scores)[names(build.scores) == "City_Gig Harbor"] <- "City_Gig_Harbor"
+  names(build.scores)[names(build.scores) == "Average Building Score"] <- "Average_Building_Score"
+  #subset the data so it does not contain any useless variables
+  building.scores <- subset(build.scores, select = c(CS_ID, Average_Building_Score, Address_Line, Price, SquareFeet, price_per_sq_ft, City_Fife, 
+                                                     City_Gig_Harbor, City_Lakewood, City_Puyallup, City_Spanaway, City_Tacoma, Property_Type_Flex, 
+                                                     Property_Type_Industrial, Property_Type_Office, Property_Type_Retail, Sale_Type_Investment, 
+                                                     Sale_Type_Investment_or_Owner_User, Sale_Type_Owner_User, Sale_Type_OwnerUser))
+  
+  non_na <- complete.cases(building.scores[, c("Address_Line", "Price", "SquareFeet", "price_per_sq_ft", "City_Fife", "City_Gig_Harbor", "City_Lakewood", 
+                                               "City_Puyallup", "City_Spanaway", "City_Tacoma", "Property_Type_Flex", "Property_Type_Industrial", 
+                                               "Property_Type_Office",         "Property_Type_Retail", "Sale_Type_Investment", 
+                                               "Sale_Type_Investment_or_Owner_User", "Sale_Type_Owner_User", "Sale_Type_OwnerUser")])
+  out <- building.scores[non_na, ]
+  #normalize numeric variables
+  out$Price <- (out$Price - min(out$Price))/(max(out$Price) - min(out$Price))
+  out$SquareFeet <- (out$SquareFeet - min(out$SquareFeet))/(max(out$SquareFeet) - min(out$SquareFeet))
+  out$price_per_sq_ft <- (out$price_per_sq_ft - min(out$price_per_sq_ft))/(max(out$price_per_sq_ft) - min(out$price_per_sq_ft))
+  out$Average_Building_Score <- (out$Average_Building_Score - min(out$Average_Building_Score                                                                        ))/(max(out$Average_Building_Score) - min(out$Average_Building_Score))
+  #remove duplicates
+  out <- out[!duplicated(out[ , "Price"]),]
+  
+  return(out)
+}
+
+nn.model <- function(data){
   #insert model
   set.seed(3)
-  build.new.model <- neuralnet(`Average Building Score` ~ Price + SquareFeet + City_Tacoma + City_Puyallup + Property_Type_Industrial + 
+  build.new.model <- neuralnet(Average_Building_Score ~ Price + SquareFeet + City_Tacoma + City_Puyallup + Property_Type_Industrial + 
                                  Property_Type_Office + Sale_Type_Investment + Sale_Type_Investment_or_Owner_User + Sale_Type_Owner_User, 
-                               data = build.scores, linear.output = T, hidden = c(5,1), act.fct = "logistic")
+                               data = data, linear.output = T, hidden = c(5,1), act.fct = "logistic")
   #extract scores and set scale 1-5
   predicted.scores <- prediction(build.new.model)
   predict.scores <- predicted.scores$rep1[,10]
   norm.predict.scores <- predict.scores * 5
-  Scores.predict <- data.frame(build.scores$CS_ID, norm.predict.scores)
+  Scores.predict <- data.frame(data$CS_ID, norm.predict.scores)
   
   return(Scores.predict)
 }
 
 mainfunction <- function(server, user, password, database, port){
-  got_scores_data <- get_data('scores', as.character(server), as.character(user), as.character(password), as.character(database), port)
-  got_new_data <- get_data('new', as.character(server), as.character(user), as.character(password), as.character(database), port)
-  got_all_data <- get_data('all', as.character(server), as.character(user), as.character(password), as.character(database), port)
+  #get the three types of data
+  got_scores_data <- get_data("scores", as.character(server), as.character(user), as.character(password), as.character(database), port)
+  got_new_data <- get_data("new", as.character(server), as.character(user), as.character(password), as.character(database), port)
+  got_all_data <- get_data("all", as.character(server), as.character(user), as.character(password), as.character(database), port)
+  #clean the three types of data
   clean.scores.data <- clean_building_data(got_scores_data)
   clean.new.data <- clean_building_data(got_new_data)
   clean.all.data <- clean_building_data(got_all_data)
-  return(clean.bld.data)
+  #score the three types of data
+  scores.predict.scores <- nn.model(clean.scores.data)
+  scores.predict.new <- nn.model(clean.new.data)
+  scores.predict.all <- nn.model(clean.all.data)
+  #neuralnet.scores <- build.new.model(got_scores_data, got_new_data, got_all_data)
+  return(scores.predict.scores)
 }
 
+mainfunction('greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com', 'eotanez', 's4I8$cPPRX5x', 'TEST', 5432)
 
 
-
+#setwd("D:/Templates/UW Stuff/Classes/MSBA/Classes/Q4 Models/Tuning/NuralNet")
+#write.csv(test_file2, "D:/Templates/UW Stuff/Classes/MSBA/Classes/Q4 Models/Tuning/NuralNet\\TESTFunction2.csv", row.names = FALSE)
