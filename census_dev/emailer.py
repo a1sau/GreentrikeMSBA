@@ -76,7 +76,8 @@ def create_email(to_email,email,password,attachment_name=None):
                     <br/>
         Once Google Sheets is open, you will be able to edit the file. The only rows you should edit will be highlighted in blue.
                     <br/>
-        Those rows are labeled: "Building Score" and "Block Group Score".
+        Those rows are labeled: "Building Score" and "Block Group Score". You may not see Building related information if
+        you are configured to only receive Census Block Group Scores.
                     <br/>
         Looking at properties
                     <br/>

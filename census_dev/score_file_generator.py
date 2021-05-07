@@ -99,8 +99,70 @@ def select_lease_building(conn,user='',limit=10):
     return df_var
 
 ##Pull only census data
-def pull_census(score_user,no_score_only=True):
-    pass
+def select_census(conn,user='',limit=10):
+    if limit<=0:
+        limit=10
+    if user:
+        user_filter = 'and bgs.uid='+str(user)
+    sql_command="""\
+    select
+    bg.bg_geo_id "Block Group ID"
+    ,max(case when dv.sid='pop' then bgd.value Else 0 END) "Population"
+    ,max(case when dv.sid='pop_MF_3MS' then bgd.value Else 0 END) "Population: 3 Miles"
+    ,max(case when dv.sid='hi_tot_3MS' then bgd.value Else 0 END) "Households: 3 Miles"
+    ,max(case when dv.sid='M_0_5' then bgd.value Else 0 END)+max(case when dv.sid='F_0_5' then bgd.value Else 0 END) "Kids under 5"
+    ,max(case when dv.sid='M_0_5_3MS' then bgd.value Else 0 END)+max(case when dv.sid='F_0_5_3MS' then bgd.value Else 0 END) "Kids under 5: 3 Miles"
+    ,max(case when dv.sid='M_5_9' then bgd.value Else 0 END)+max(case when dv.sid='F_5_9' then bgd.value Else 0 END) "Kids 5 to 9"
+    ,max(case when dv.sid='M_5_9_3MS' then bgd.value Else 0 END)+max(case when dv.sid='F_5_9_3MS' then bgd.value Else 0 END) "Kids 5 to 9: 3 Miles"
+     ,round(cast((max(case when dv.sid='M_0_5' then bgd.value Else 0 END)+max(case when dv.sid='F_0_5' then bgd.value Else 0 END)) /
+        max(case when dv.sid='pop' then bgd.value Else null END) as numeric),3) "%Percent Kids under 5"
+     ,round(cast((max(case when dv.sid='M_0_5_3MS' then bgd.value Else 0 END)+max(case when dv.sid='F_0_5_3MS' then bgd.value Else 0 END)) /
+        max(case when dv.sid='pop_MF_3MS' then bgd.value Else null END) as numeric),3) "%Percent Kids under 5: 3 Miles"
+     ,round(cast((max(case when dv.sid='M_5_9' then bgd.value Else 0 END)+max(case when dv.sid='F_5_9' then bgd.value Else 0 END)) /
+        max(case when dv.sid='pop' then bgd.value Else null END) as numeric),3) "%Percent Kids 5 to 9"
+    ,round(cast((max(case when dv.sid='M_5_9_3MS' then bgd.value Else 0 END)+max(case when dv.sid='F_5_9_3MS' then bgd.value Else 0 END)) /
+         max(case when dv.sid='pop_MF_3MS' then bgd.value Else null END) as numeric),3)  "%Percent Kids 5 to 9: 3 Miles"
+    ,max(case when dv.sid='avg_age' then bgd.value Else 0 END) "Average Age"
+    ,round(cast(sum(case when dv.sid in('hi_0_10_3MS','hi_10_15_3MS','hi_15_20_3MS','hi_20_25_3MS','hi_25_30_3MS','hi_30_35_3MS','hi_35_40_3MS') then bgd.value  else 0 END) /
+      max(case when dv.sid='hi_tot_3MS' then bgd.value Else 0 END) as numeric),3) "%Household income under 40K: 3 Mile"
+    ,round(cast(sum(case when dv.sid in('hi_40_45_3MS','hi_45_50_3MS') then bgd.value  else 0 END) /
+      max(case when dv.sid='hi_tot_3MS' then bgd.value Else 0 END) as numeric),3) "%Household income 40K to 50K: 3 Mile"
+    ,round(cast(sum(case when dv.sid in('hi_50_60_3MS') then bgd.value  else 0 END) /
+      max(case when dv.sid='hi_tot_3MS' then bgd.value Else 0 END) as numeric),3) "%Household income 50K to 60K: 3 Mile"
+    ,round(cast(sum(case when dv.sid in('hi_60_75_3MS') then bgd.value  else 0 END) /
+      max(case when dv.sid='hi_tot_3MS' then bgd.value Else 0 END) as numeric),3) "%Household income 60K to 75K: 3 Mile"
+    ,round(cast(sum(case when dv.sid in('hi_75_100_3MS') then bgd.value  else 0 END) /
+      max(case when dv.sid='hi_tot_3MS' then bgd.value Else 0 END) as numeric),3) "%Household income 75K to 100K: 3 Mile"
+    ,round(cast(sum(case when dv.sid in('hi_100_125_3MS') then bgd.value  else 0 END) /
+      max(case when dv.sid='hi_tot_3MS' then bgd.value Else 0 END) as numeric),3) "%Household income 100K to 125K: 3 Mile"
+    ,round(cast(sum(case when dv.sid in('hi_125_150_3MS') then bgd.value  else 0 END) /
+      max(case when dv.sid='hi_tot_3MS' then bgd.value Else 0 END) as numeric),3) "%Household income 125K to 150K: 3 Mile"
+    ,round(cast(sum(case when dv.sid in('hi_150_200_3MS') then bgd.value  else 0 END) /
+      max(case when dv.sid='hi_tot_3MS' then bgd.value Else 0 END) as numeric),3) "%Household income 150K to 200K: 3 Mile"
+    ,round(cast(sum(case when dv.sid in('hi_200_999_3MS') then bgd.value  else 0 END) /
+      max(case when dv.sid='hi_tot_3MS' then bgd.value Else 0 END) as numeric),3) "%Household income 200K+: 3 Mile"
+    ,'' as "Block Group Score"
+    from "Block_Group" as bg
+    left join "BG_Data" as bgd on bg.bg_geo_id = bgd.bg_geo_id
+    inner join "Demo_Var" as dv on dv.full_variable_id=bgd.variable_id
+    left join "BG_Score" as bgs on bg.bg_geo_id = bgs.bg_geo_id {}
+    where
+        bgs.score is null
+    group by bg.bg_geo_id
+    having
+    max(case when dv.sid='pop' then bgd.value Else 0 END) > 0     --Handle BGs with no population
+    and max(case when dv.sid='hi_tot_3MS' then bgd.value Else 0 END)>0
+    order by RANDOM()
+    limit {};
+    """.format(user_filter,limit)
+    # cur = conn.cursor()
+    # cur.execute(sql_command)
+    try:
+        df_var=pd.read_sql_query(sql_command,conn)
+    except (Exception, psycopg2.DatabaseError) as err:
+        show_psycopg2_exception(err)
+        sys.exit()
+    return df_var
 
 ##pick buildings
 def select_sale_building(conn,user='',limit=10):
@@ -185,9 +247,16 @@ def select_sale_building(conn,user='',limit=10):
 
 
 #Generate score sheet with formatting from DF
-def gen_excel(sale_df,filename,lease_df):
-
-    workbook = xlsxwriter.Workbook(filename)
+def gen_excel(filename=None,sale_df=pd.DataFrame(),lease_df=pd.DataFrame(),census_df=pd.DataFrame()):
+    if filename == None:
+        return False
+    if all (x.empty for x in [sale_df,lease_df,census_df]):
+        return False
+    try:
+        workbook = xlsxwriter.Workbook(filename)
+    except Exception as e:
+        print("Error creating workbook for file",filename,e)
+        return False
     cell_bold = workbook.add_format({'bold':True})
     cell_underline= workbook.add_format({'underline':True})
     cell_dollar = workbook.add_format({'num_format':'$#,##0.00_);($#,##0.00)'})
@@ -195,13 +264,17 @@ def gen_excel(sale_df,filename,lease_df):
     cell_score = workbook.add_format({'bg_color':'#33CCCC','bold':True})
     format_dict={"cell_bold":cell_bold,"cell_underline":cell_underline,"cell_dollar":cell_dollar,
                  "cell_percent":cell_percent,"cell_score":cell_score}
-    workbook=gen_sheet(workbook,sale_df,format_dict,"Sale")
-    workbook=gen_sheet(workbook,lease_df,format_dict,"Lease")
+    if not sale_df.empty:
+        workbook=gen_sheet(workbook,sale_df,format_dict,"Sale")
+    if not lease_df.empty:
+        workbook=gen_sheet(workbook,lease_df,format_dict,"Lease")
+    if not census_df.empty:
+        workbook=gen_sheet(workbook,census_df,format_dict,"Census")
     try:
         workbook.close()
         return True
-    except:
-        print("File creation error")
+    except Exception as e:
+        print("File creation error:",e)
     return False
 
 
@@ -225,6 +298,7 @@ def gen_sheet(workbook,df_var,format_dict,worksheet_name="Sheet"):
                 if isnan(row):
                     row=""
             xcol+=1
+            ##TODO Add google map link to long/lat: https://www.google.com/maps/search/?api=1&query=<lat>,<lng>
             if colnam[-5:] == "Score":
                 worksheet.write(xrow,xcol,row,format_dict["cell_score"])
             elif colnam in ("Price","Monthly Rent","$ per sq ft"):
@@ -256,19 +330,27 @@ def show_psycopg2_exception(err):
     print ("pgcode:", err.pgcode, "\n")
 
 
-def select_census(df_census,limit=10):
-    pass
-
-def determine_excel_path(type):
-    pass
-
-
 def control_building(conn,uid,limit):
     filename=gen_filename(uid,1)
-
     sale_df = select_sale_building(conn,uid,limit)
+    if sale_df.empty:
+        sale_df = None
     lease_df=select_lease_building(conn,uid,limit)
-    ok = gen_excel(sale_df,filename,lease_df)
+    if lease_df.empty:
+        lease_df = None
+    ok = gen_excel(filename,sale_df=sale_df,lease_df=lease_df)
+    if ok:
+        return filename
+    else:
+        print("Excel generation failed")
+        return None
+    return None
+
+
+def control_census(conn,uid,limit):
+    filename=gen_filename(uid,2)
+    census_df = select_census(conn,uid,limit)
+    ok = gen_excel(filename,census_df=census_df)
     if ok:
         return filename
     else:
@@ -319,9 +401,18 @@ def email_users_main():
         else:
             print("")
     #Get list of users from server
+    df_building_user=get_building_user(conn)
+    send_email(conn,df_building_user,email,password,census_email=False)
+    df_census_user=get_census_user(conn)
+    send_email(conn,df_census_user,email,password,census_email=True)
+    conn.close()
+    return True
+
+
+def get_building_user(conn):
     sql_command="""select
     use.uid
-    ,use.last_building_email
+    ,use.last_building_email "last_email"
     ,use.email_frequency
     from "User" as use
     where
@@ -333,34 +424,58 @@ def email_users_main():
     except (Exception, psycopg2.DatabaseError) as err:
         show_psycopg2_exception(err)
         sys.exit()
+    return df_user
+
+
+def get_census_user(conn):
+    sql_command="""select
+    use.uid
+    ,use.last_census_email "last_email"
+    ,use.email_frequency
+    from "User" as use
+    where
+    use.subscribed_census = TRUE
+    and use.active = TRUE; 
+    """
+    try:
+        df_user=pd.read_sql_query(sql_command,conn)
+    except (Exception, psycopg2.DatabaseError) as err:
+        show_psycopg2_exception(err)
+        sys.exit()
+    return df_user
+
+
+def send_email(conn,df_user,email,password,census_email=False):
     today=date.today()
+    if df_user.empty:
+        return False
     for i,user_line in df_user.iterrows():
         print(i,user_line)
         uid=user_line['uid']
         freq=user_line['email_frequency']
-        last_email_dt=user_line['last_building_email']
+        last_email_dt=user_line['last_email']
         print(type(last_email_dt))
         if (freq is None) or isnan(freq):
             freq = 7
             update_user_frequency(conn,uid,freq)  #set default on server if missing
-        time_for_email=False
-        if user_line['last_building_email'] is None:  #email not previously sent
+        if last_email_dt is None:  #email not previously sent
             time_for_email=True
         else:
             next_email_dt=last_email_dt+timedelta(days=freq)
             time_for_email = (today>=next_email_dt)
         if time_for_email:  #generate new score file and email user
             print("Creating email for UID",uid)
-            file=control_building(conn,uid,10)
+            if census_email:
+                file=control_census(conn,uid,10)
+            else:
+                file=control_building(conn,uid,10)
             to_email = get_user_email(conn,uid)
             if file:
                 print("Sending email:",to_email,file)
                 email_sent=em.create_email(to_email,email,password,file)
                 if email_sent:
-                    update_last_sent(conn,uid)  #update user with latest email date
+                    update_last_sent(conn,uid,census_email==False)  #update user with latest email date
                     #TODO delete file after sent
-
-    conn.close()
     return True
 
 
