@@ -76,7 +76,8 @@ def create_email(to_email,email,password,attachment_name=None):
                     <br/>
         Once Google Sheets is open, you will be able to edit the file. The only rows you should edit will be highlighted in blue.
                     <br/>
-        Those rows are labeled: "Building Score" and "Block Group Score".
+        Those rows are labeled: "Building Score" and "Block Group Score". You may not see Building related information if
+        you are configured to only receive Census Block Group Scores.
                     <br/>
         Looking at properties
                     <br/>
@@ -108,6 +109,16 @@ def create_email(to_email,email,password,attachment_name=None):
         5. Once you send both spreadsheets back, our program will analyze your scores and utilize them to better train the model and provide you with properties that better match your criteria.
                     <br/>
                 </p>
+        <br/>
+        <br/>
+        If you want a new score spreadsheet send tomorrow rather than wait until the next scheduled file, click this 
+        <a href="mailto:msba.greentrike@gmail.com?subject=Send new scores"> link: </a> and send the email.
+        <br/>
+        
+        <br/><br/>
+        If you want to stop receiving emails, click this <a href="mailto:msba.greentrike@gmail.com?subject=Unsubscribe"> link: </a> and send the email.
+        <br/>
+        
           </body>
         </html>
         """.format(email)
@@ -169,6 +180,7 @@ def check_email(email,password,conn):
                     from_email = from_email.decode(encoding)
                 print("Subject:", subject)
                 print("From:", from_email)
+                ##TODO Add special handling for unsubscribe and send immediately emails
                 print(msg.is_multipart())
             if msg.is_multipart() and (from_email.lower() != email.lower()):  #Don't download excel that are CCed from main account
                 # iterate over email parts
@@ -288,7 +300,10 @@ def etl_building_score(conn,df,uid):
         score=validate_score(row[1])
         print("read",cs_id,score)
         if cs_id and score and uid:
-            sql_command='insert into "ETL_Building_Score" (cs_id,score,uid,date) values (\'{}\',\'{}\',\'{}\',NOW()::date);'.format(cs_id,score,uid)
+            sql_command="""insert into "ETL_Building_Score" (cs_id,score,uid,date) values (\'{}\',\'{}\',\'{}\',NOW()::date)
+            on conflict on constraint etl_building_score_pk do update
+            set score = excluded.score;
+            ;""".format(cs_id,score,uid)
             print(sql_command)
             cur.execute(sql_command)
 
@@ -316,7 +331,9 @@ def etl_census_score(conn,df,uid):
         score=validate_score(row[1])
         print("read",bg_geo_id,score)
         if bg_geo_id and score and uid:
-            sql_command='insert into "ETL_BG_Score" (bg_geo_id,score,uid,date) values (\'{}\',\'{}\',\'{}\',NOW()::date);'.format(bg_geo_id,score,uid)
+            sql_command="""insert into "ETL_BG_Score" (bg_geo_id,score,uid,date) values (\'{}\',\'{}\',\'{}\',NOW()::date)
+                        on conflict on constraint etl_bg_score_pk do update
+                        set score = excluded.score;""".format(bg_geo_id,score,uid)
             print(sql_command)
             cur.execute(sql_command)
 
@@ -378,14 +395,19 @@ def main():
         password = email_config.get('password',raw=True)
         work_dir = email_config.get('attachment',raw=True)
         if work_dir:
+            old_work_dir=os.getcwd()
             os.chdir(work_dir)
             print("Working directory:",os.getcwd())
         if (password == "") or (email_config['email'] == ""):
             sys.exit("Update ""config.ini"" with email and password before running script again.")
         new_scores = check_email(email_config['email'],password,conn)
+        new_scores=True
         if new_scores:
             update_user_scores(conn,'attachment','archive')
+            os.chdir(old_work_dir) #restore old working directory in case config needs to be reloaded
             cm.main(conn)   #recalculate model scores
+        else:
+            os.chdir(old_work_dir) #restore old working directory in case config needs to be reloaded
     else:
         sys.exit("Configure ""config.ini"" before running script again.")
     conn.close()
