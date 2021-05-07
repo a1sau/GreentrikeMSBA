@@ -72,12 +72,14 @@ def start(outfilename,limit=0):
     return None
 
 
-def check_for_config():
+def check_for_config(create_if_missing=False):
     if os.path.isfile("config.ini"):
         return True
     else:
-        print("Config is not exists, attempting to create new file")
-        create_config()
+        print("Config is not exists.")
+        if create_if_missing:
+            print("Attempting to create new config file.")
+            create_config()
         print("Please configure ""config.ini"" before running script again.")
         return False
 

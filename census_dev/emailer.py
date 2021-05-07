@@ -179,6 +179,7 @@ def check_email(email,password,conn):
                     from_email = from_email.decode(encoding)
                 print("Subject:", subject)
                 print("From:", from_email)
+                ##TODO Add special handling for unsubscribe and send immediately emails
                 print(msg.is_multipart())
             if msg.is_multipart() and (from_email.lower() != email.lower()):  #Don't download excel that are CCed from main account
                 # iterate over email parts
@@ -298,7 +299,10 @@ def etl_building_score(conn,df,uid):
         score=validate_score(row[1])
         print("read",cs_id,score)
         if cs_id and score and uid:
-            sql_command='insert into "ETL_Building_Score" (cs_id,score,uid,date) values (\'{}\',\'{}\',\'{}\',NOW()::date);'.format(cs_id,score,uid)
+            sql_command="""insert into "ETL_Building_Score" (cs_id,score,uid,date) values (\'{}\',\'{}\',\'{}\',NOW()::date)
+            on conflict on constraint etl_building_score_pk do update
+            set score = excluded.score;
+            ;""".format(cs_id,score,uid)
             print(sql_command)
             cur.execute(sql_command)
 
@@ -326,7 +330,9 @@ def etl_census_score(conn,df,uid):
         score=validate_score(row[1])
         print("read",bg_geo_id,score)
         if bg_geo_id and score and uid:
-            sql_command='insert into "ETL_BG_Score" (bg_geo_id,score,uid,date) values (\'{}\',\'{}\',\'{}\',NOW()::date);'.format(bg_geo_id,score,uid)
+            sql_command="""insert into "ETL_BG_Score" (bg_geo_id,score,uid,date) values (\'{}\',\'{}\',\'{}\',NOW()::date)
+                        on conflict on constraint etl_bg_score_pk do update
+                        set score = excluded.score;""".format(bg_geo_id,score,uid)
             print(sql_command)
             cur.execute(sql_command)
 
@@ -388,14 +394,19 @@ def main():
         password = email_config.get('password',raw=True)
         work_dir = email_config.get('attachment',raw=True)
         if work_dir:
+            old_work_dir=os.getcwd()
             os.chdir(work_dir)
             print("Working directory:",os.getcwd())
         if (password == "") or (email_config['email'] == ""):
             sys.exit("Update ""config.ini"" with email and password before running script again.")
         new_scores = check_email(email_config['email'],password,conn)
+        new_scores=True
         if new_scores:
             update_user_scores(conn,'attachment','archive')
+            os.chdir(old_work_dir) #restore old working directory in case config needs to be reloaded
             cm.main(conn)   #recalculate model scores
+        else:
+            os.chdir(old_work_dir) #restore old working directory in case config needs to be reloaded
     else:
         sys.exit("Configure ""config.ini"" before running script again.")
     conn.close()
