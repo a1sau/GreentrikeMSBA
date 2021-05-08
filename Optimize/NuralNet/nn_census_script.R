@@ -69,7 +69,7 @@ get_data <- function(scores_or_new, server, user, password, database, port){
   census.import <- dbGetQuery(con,import.census)
   
   if(scores_or_new == 'scores'){
-    census.scores <- sqldf('SELECT "Block Group ID" AS "Block.Group.ID", "Average Block Group Score" AS "Average.Block.Group.Score", Population, 
+    census.df <- sqldf('SELECT "Block Group ID" AS "Block.Group.ID", "Average Block Group Score" AS "Average.Block.Group.Score", Population, 
                            "Population: 3 Mile" AS "Population.3.Mile", "Households: 3 Mile" AS "Households.3.Mile", 
                            "Percent Kids under 5" AS "Percent.Kids.under.5", "Percent Kids under 5: 3 Mile" AS "Percent.Kids.under.5.3.Mile", 
                            "Percent Kids 5 to 9" AS "Percent.Kids.5.to.9", "Percent Kids 5 to 9: 3 Mile" AS "Percent.Kids.5.to.9.3 Mile", 
@@ -81,11 +81,11 @@ get_data <- function(scores_or_new, server, user, password, database, port){
                            "Household income 100K to 125K: 3 Mile" AS "Household.income.100:.125K.3.Mile", 
                            "Household income 125K to 150K: 3 Mile" AS "Household.income.125K.to.150K.3.Mile", 
                            "Household income 150K to 200K: 3 Mile" AS "Household.income.150K.to.200K.3.Mile", 
-                           "Household income 200K+: 3 Mile"  AS "Household.income.200K+.3Mile"FROM "census.import" 
-                           WHERE "Average Block Group Score" IS NOT NULL')
+                           "Household income 200K+: 3 Mile"  AS "Household.income.200K+.3Mile" FROM "census.import" 
+                           WHERE "Average.Block.Group.Score" IS NOT NULL')
   }
   if(scores_or_new == 'new'){
-    census.new <- sqldf('SELECT "Block Group ID" AS "Block.Group.ID", "Average Block Group Score" AS "Average.Block.Group.Score", Population, 
+    census.df <- sqldf('SELECT "Block Group ID" AS "Block.Group.ID", "Average Block Group Score" AS "Average.Block.Group.Score", Population, 
                            "Population: 3 Mile" AS "Population.3.Mile", "Households: 3 Mile" AS "Households.3.Mile", 
                            "Percent Kids under 5" AS "Percent.Kids.under.5", "Percent Kids under 5: 3 Mile" AS "Percent.Kids.under.5.3.Mile", 
                            "Percent Kids 5 to 9" AS "Percent.Kids.5.to.9", "Percent Kids 5 to 9: 3 Mile" AS "Percent.Kids.5.to.9.3 Mile", 
@@ -97,11 +97,11 @@ get_data <- function(scores_or_new, server, user, password, database, port){
                            "Household income 100K to 125K: 3 Mile" AS "Household.income.100:.125K.3.Mile", 
                            "Household income 125K to 150K: 3 Mile" AS "Household.income.125K.to.150K.3.Mile", 
                            "Household income 150K to 200K: 3 Mile" AS "Household.income.150K.to.200K.3.Mile", 
-                           "Household income 200K+: 3 Mile"  AS "Household.income.200K+.3Mile"FROM "census.import" 
-                           WHERE "Average Block Group Score" IS NULL')
+                           "Household income 200K+: 3 Mile"  AS "Household.income.200K+.3Mile" FROM "census.import" 
+                           WHERE "Average.Block.Group.Score" IS NULL')
   }
   if(scores_or_new == 'all'){
-    census.new <- sqldf('SELECT "Block Group ID" AS "Block.Group.ID", "Average Block Group Score" AS "Average.Block.Group.Score", Population, 
+    census.df <- sqldf('SELECT "Block Group ID" AS "Block.Group.ID", "Average Block Group Score" AS "Average.Block.Group.Score", Population, 
                            "Population: 3 Mile" AS "Population.3.Mile", "Households: 3 Mile" AS "Households.3.Mile", 
                            "Percent Kids under 5" AS "Percent.Kids.under.5", "Percent Kids under 5: 3 Mile" AS "Percent.Kids.under.5.3.Mile", 
                            "Percent Kids 5 to 9" AS "Percent.Kids.5.to.9", "Percent Kids 5 to 9: 3 Mile" AS "Percent.Kids.5.to.9.3 Mile", 
@@ -115,45 +115,51 @@ get_data <- function(scores_or_new, server, user, password, database, port){
                            "Household income 150K to 200K: 3 Mile" AS "Household.income.150K.to.200K.3.Mile", 
                            "Household income 200K+: 3 Mile"  AS "Household.income.200K+.3Mile"FROM "census.import"')
   }
-  return("")
+  print(paste("SQL",dim(census.df)))
+  return(census.df)
 }
 
 
 clean_census_data <- function(dataframe){
-  census.scores <- data.frame
+  census.scores <- dataframe
   
-  min.max.norm <- function(x) {
-    (x - min(x)) / (max(x) - min(x))
-  }
+
   
   for (i in 2:length(census.scores)) {
     census.scores[i] <- min.max.norm(census.scores[i])
   }
+  return(census.scores)
 }
 
-nn.model.score <- function(data){
+min.max.norm <- function(x) {
+  return((x - min(x)) / (max(x) - min(x)))
+}
+
+nn.model.score <- function(df){
   #insert model
   set.seed(5)
   neun.cens <- neuralnet(Average.Block.Group.Score ~ Population + Population.3.Mile + Households.3.Mile + Percent.Kids.under.5 + 
                                   Percent.Kids.under.5.3.Mile + Percent.Kids.5.to.9 + Average.Age + Household.income.40K.to.50K.3.Mile + 
-                                  Household.income.50K.to.60K.3.Mile + Household.income.60K.to.75K.3.Mile, data = cens.train, linear.output = T, 
+                                  Household.income.50K.to.60K.3.Mile + Household.income.60K.to.75K.3.Mile, data = df, linear.output = T, 
                                   hidden = c(4,1))
   #extract scores and set scale 1-5
-  predicted.scores <- prediction(neun.cens)
+  predicted.scores <- prediction(neun.cens,newdata=df)
   predict.scores <- predicted.scores$rep1[,11]
   norm.predict.scores <- predict.scores * 5
   Scores.predict <- data.frame(data$CS_ID, norm.predict.scores)
   return(Scores.predict)
 }
 
-nn.model.new <- function(server, user, password, database, port, data){
-  got_scores_data <- get_data("scores", as.character(server), as.character(user), as.character(password), as.character(database), port)
+nn.model.new <- function(server, user, password, database, port){
+  got_scores_data <- get_data("scores", server, user, password, database, port)
+  print(paste("got data new model",dim(got_scores_data)))
   cleaned.scores.data <- clean_census_data(got_scores_data)
+  print("Cleaned scores:")
   #insert model
   set.seed(3)
   neun.cens <- neuralnet(Average.Block.Group.Score ~ Population + Population.3.Mile + Households.3.Mile + Percent.Kids.under.5 + 
                            Percent.Kids.under.5.3.Mile + Percent.Kids.5.to.9 + Average.Age + Household.income.40K.to.50K.3.Mile + 
-                           Household.income.50K.to.60K.3.Mile + Household.income.60K.to.75K.3.Mile, data = cens.train, linear.output = T, 
+                           Household.income.50K.to.60K.3.Mile + Household.income.60K.to.75K.3.Mile, data = cleaned.scores.data, linear.output = T, 
                            hidden = c(4,1))
   return(neun.cens)
 }
@@ -163,9 +169,9 @@ new.predictions <- function(data1, data2){
   return(Scores.predict.new)
 }
 
-mainfunction.scores <- function(server, user, password, database, port){
+mainfunction.scores <- function(server, user, password, database, port=5432){
   
-  got_scores_data <- get_data("scores", as.character(server), as.character(user), as.character(password), as.character(database), port)
+  got_scores_data <- get_data("scores", server, user, password, database, port)
   
   clean.scores.data <- clean_census_data(got_scores_data)
   
@@ -174,18 +180,17 @@ mainfunction.scores <- function(server, user, password, database, port){
   return(score.model)
 }
 
-mainfunction.scores('greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com', 'eotanez', 's4I8$cPPRX5x', 'TEST', 5432)
 
 mainfunction.new <- function(server, user, password, database, port){
   #get the data
   
-  got_new_data <- get_data("new", as.character(server), as.character(user), as.character(password), as.character(database), port)
+  got_new_data <- get_data("new", server, user, password, database, port)
   #clean the data
   
   clean.new.data <- clean_census_data(got_new_data)
   #load in the subfunction
   
-  model.new <- nn.model.new('greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com', 'eotanez', 's4I8$cPPRX5x', 'TEST', 5432)
+  model.new <- nn.model.new(server, user, password, database, port)
   
   #then predict with new
   
@@ -193,22 +198,31 @@ mainfunction.new <- function(server, user, password, database, port){
   return(Scores.predict.new)
 }
 
-mainfunction.new('greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com', 'eotanez', 's4I8$cPPRX5x', 'TEST', 5432)
-
-mainfunction.all <- function(server, user, password, database, port){
+mainfunction.all <- function(server, user, password, database, port=5432){
   #get the data
-  
-  got_all_data <- get_data("all", as.character(server), as.character(user), as.character(password), as.character(database), port)
+  print("Getting Data")
+  got_all_data <- get_data("all", server, user, password, database, port)
+
   #clean the data
+  print("Cleaning Data")
+  clean.census.data <- clean_census_data(got_all_data)
   
-  clean.all.data <- clean_census_data(got_all_data)
   #load in the subfunction
+  print("Building Model")
+  model.all <- nn.model.new(server, user, password, database, port)
   
-  model.all <- nn.model.new('greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com', 'eotanez', 's4I8$cPPRX5x', 'TEST', 5432)
   #predict with scores first
-  
-  Scores.predict.all <- new.predictions(model.all, clean.all.data) * 5
-  return(Scores.predict.all)
+  print("Predicting new results")
+  Scores.predict.raw <- new.predictions(model.all, clean.census.data) * 5
+  Scores.rounded<-round(Scores.predict.raw)
+  Scores.rounded[Scores.rounded<1] <- 1
+  Scores.rounded[Scores.rounded>5] <- 5
+  df<-as.data.frame(clean.census.data$Block.Group.ID)
+  df$raw_score<-as.numeric(Scores.predict.raw)
+  df$score<-as.integer(Scores.rounded)
+  colnames(df)<-c("BG_GEO_ID","raw_score","score")
+  return(df)
 }
 
-mainfunction.all('greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com', 'eotanez', 's4I8$cPPRX5x', 'TEST', 5432)
+scoredf<-mainfunction.all('greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com', 'eotanez', 's4I8$cPPRX5x', 'TEST', 5432)
+print(scoredf)
