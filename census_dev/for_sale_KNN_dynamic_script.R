@@ -7,7 +7,7 @@ library(class)
 library(psych)
 
 #This creates the connection to the database and returns the query depending on if the user wants "scored" or "new" data.
-get_data <- function(scored_or_new, server, user, password, database){
+get_data <- function(scored_or_new, server, user, password, database,port){
   library(odbc)
   scored_sale_buildings = 'SELECT b."CS_ID", BS."Score", b."City", b."Property_Type", b."SquareFeet", b."Price", b."Building_Class", b."Sale_Type" FROM "Building" b RIGHT JOIN "Building_Score" BS on b."CS_ID" = BS.cs_id WHERE "Sale_Lease" = \'Sale\';'
   
@@ -19,7 +19,7 @@ get_data <- function(scored_or_new, server, user, password, database){
                         UID      = as.character(user),
                         PWD      = as.character(password),
                         server = as.character(server),
-                        port = 5432)
+                        port = as.character(port))
   if(scored_or_new == 'scored'){
     df <- dbGetQuery(con,scored_sale_buildings)
   }
@@ -146,11 +146,11 @@ for_sale_KNN_model <- function(scored_buildings, new_buildings, K){
   setnames(output, (c( "CS_ID", "model_id", "score", "date_calculated")))
   return (output)
 }
-main_forsale_knn <- function(user, password, server, database){ 
+main_forsale_knn <- function(user, password, server, database,port=5432){ 
   #Get data frame of scored buildings 
-  building.scores <- get_data('scored',as.character(server),as.character(user),as.character(password),as.character(database))
+  building.scores <- get_data('scored',as.character(server),as.character(user),as.character(password),as.character(database),port)
   #Get data frame of new buildings
-  new.buildings <- get_data('all',as.character(server),as.character(user),as.character(password),as.character(database))
+  new.buildings <- get_data('all',as.character(server),as.character(user),as.character(password),as.character(database),port)
   #Clean scored buildings
   clean_scored_data <- clean_sale_data(building.scores)
   #Clean new buildings
