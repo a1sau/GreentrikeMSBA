@@ -216,7 +216,7 @@ mainfunction.all <- function(server, user, password, database, port=5432){
   df<-as.data.frame(clean.census.data$Block.Group.ID)
   df$raw_score<-as.numeric(Scores.predict.raw)
   df$score<-as.integer(Scores.rounded)
-  colnames(df)<-c("BG_GEO_ID","raw_score","score")
+  colnames(df)<-c("bg_geo_id","raw_score","score")
   return(df)
 }
 

@@ -6,7 +6,7 @@ library(FNN)
 library(class)
 library(psych)
 #SQL query to get data frames for either "scored" or "new" block groups 
-get_data <- function(scored_or_new, server, user, password, database,model_number){
+get_data <- function(scored_or_new, server, user, password, database,port=5432){
   library(odbc)
   bg.scored.3ms.raw ='SELECT BGD.bg_geo_id, BGD.variable_id, BGD.Value,
                       round((select avg(bgs.score) from "BG_Score" as BGS where BGS.bg_geo_id=BGD.bg_geo_id)) as score 
@@ -30,7 +30,7 @@ get_data <- function(scored_or_new, server, user, password, database,model_numbe
                         UID      = as.character(user),
                         PWD      = as.character(password),
                         server = as.character(server),
-                        port = 5432)
+                        port = port)
   if(scored_or_new == 'scored'){
     df <- dbGetQuery(con,bg.scored.3ms.raw)
   }
@@ -121,10 +121,10 @@ find_best_knn<- function(clean_scored_data){
 }
 
 # Our main function to run all the sub-functions and produce a scored data frame
-main_census_knn <- function(user, password, server, database){
+main_census_knn <- function(user, password, server, database,port){
   #Get the data from the database
-  bg.scored.3ms.raw <- get_data('scored',as.character(server),as.character(user),as.character(password),as.character(database))
-  bg.new.3ms.raw <- get_data('all',as.character(server),as.character(user),as.character(password),as.character(database))
+  bg.scored.3ms.raw <- get_data('scored',server,user,password,database,port)
+  bg.new.3ms.raw <- get_data('all',server,user,password,database,port)
   #un-melt the data 
   bg.scored.3ms <- reshape_census(bg.scored.3ms.raw)
   bg.new.3ms <- reshape_census(bg.new.3ms.raw)

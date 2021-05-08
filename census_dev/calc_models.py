@@ -15,6 +15,15 @@ def calc_knn_sale(user,password,host,database,port):
     return df_result
 
 
+def calc_knn_census(user,password,host,database,port):
+    r = robjects.r
+    r['source']('census_KNN_dynamic_script.R')  #object of R file
+    get_main_function_r = robjects.globalenv['main_census_knn']  #loading R function to use
+    df_result_r = get_main_function_r(user,password,host,database,port)
+    df_result = pandas2ri.rpy2py(df_result_r)
+    return df_result
+
+
 def calc_neuralnet_sale(user,password,host,database,port):
     r = robjects.r
     r['source']('nn_building_script.R')  #object of R file
@@ -53,10 +62,10 @@ def update_db_score(conn,df,model,is_building=True):
         id_name="bg_geo_id"
         constraint_name="bg_model_pk"
         if 'raw_score' in list(df):
-            column_list=['BG_GEO_ID','score','raw_score']
+            column_list=['bg_geo_id','score','raw_score']
             raw_available=True
         else:
-            column_list=['BG_GEO_ID','score']
+            column_list=['bg_geo_id','score']
             raw_available=False
     cur=conn.cursor()
     try:
@@ -104,11 +113,17 @@ def main(conn=None):
     else:
         sys.exit("Configuration file not present")
     success=[]
+    print("Running KNN Sale Model")
     df = calc_knn_sale(user,password,host,database,port)
-    model=str(int(df['model_id'].iat[0]))
+    model = str(int(df['model_id'].iat[0]))
     success.append(update_db_score(conn,df,model))
+    print("Running KNN Census Model")
+    df = calc_knn_census(user,password,host,database,port)
+    success.append(update_db_score(conn,df,14,is_building=False))
+    print("Running Neural Network Sale Model")
     df = calc_neuralnet_sale(user,password,host,database,port)
     success.append(update_db_score(conn,df,15))
+    print("Running Neural Network Census Model")
     df = calc_neuralnet_census(user,password,host,database,port)
     success.append(update_db_score(conn,df,16,is_building=False))
     return success
