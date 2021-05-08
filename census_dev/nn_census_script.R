@@ -220,5 +220,3 @@ mainfunction.all <- function(server, user, password, database, port=5432){
   return(df)
 }
 
-scoredf<-mainfunction.all('greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com', 'eotanez', 's4I8$cPPRX5x', 'TEST', 5432)
-print(scoredf)
