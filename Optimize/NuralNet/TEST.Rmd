@@ -109,8 +109,8 @@ having
   return("")
 }
 
-test.scores <- get_data('scores', 'greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com', 'eotanez', 's4I8$cPPRX5x', 'TEST', 5432)
-test.new <- get_data('new', 'greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com', 'eotanez', 's4I8$cPPRX5x', 'TEST', 5432)
+test.scores <- get_data('scores', 'greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com', 'boopbooboobop', 'boobooboobeep', 'TEST', 5432)
+test.new <- get_data('new', 'greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com', 'noyoumean', 'bopboobooboobopbooboobeep', 'TEST', 5432)
 test.scores
 test.new
 ```
@@ -146,7 +146,7 @@ clean_building_data_scores <- function(dataframe){
   return(out)
 }
 
-test.clean.scores <- clean_building_data(test.scores)
+  test.clean.scores <- clean_building_data(test.scores)
 test.clean.new <- clean_building_data(test.new)
 test.clean.scores
 test.clean.new
@@ -154,16 +154,7 @@ test.clean.new
 
 
 ```{r}
-nn.model <- function(model_or_predict, data){
-  if(model_or_predict == 'model'){
-    #insert model
-    set.seed(3)
-    build.new.model <- neuralnet(Average_Building_Score ~ Price + SquareFeet + City_Tacoma + City_Puyallup + Property_Type_Industrial + 
-                                 Property_Type_Office + Sale_Type_Investment + Sale_Type_Investment_or_Owner_User + Sale_Type_Owner_User, 
-                               data = data, linear.output = T, hidden = c(5,1), act.fct = "logistic")
-    return(build.new.model)
-  }
-  if(model_or_predict == 'predict'){
+nn.model.score <- function(data){
     #insert model
     set.seed(3)
     build.new.model <- neuralnet(Average_Building_Score ~ Price + SquareFeet + City_Tacoma + City_Puyallup + Property_Type_Industrial + 
@@ -175,17 +166,31 @@ nn.model <- function(model_or_predict, data){
     norm.predict.scores <- predict.scores * 5
     Scores.predict <- data.frame(data$CS_ID, norm.predict.scores)
     return(Scores.predict)
-  }
 }
 
-test.clean.scores.model <- nn.model('model', test.clean.scores)
+test.clean.scores.model <- nn.model(test.clean.scores)
 test.clean.model
+```
+```{r}
+nn.model.new <- function(server, user, password, database, port, data){
+  got_scores_data <- get_data("scores", as.character(server), as.character(user), as.character(password), as.character(database), port)
+  cleaned.scores.data <- clean_building_data(got_scores_data)
+    #insert model
+    set.seed(3)
+    build.new.model <- neuralnet(Average_Building_Score ~ Price + SquareFeet + City_Tacoma + City_Puyallup + Property_Type_Industrial + 
+                                 Property_Type_Office + Sale_Type_Investment + Sale_Type_Investment_or_Owner_User + Sale_Type_Owner_User, 
+                               data = cleaned.scores.data, linear.output = T, hidden = c(5,1), act.fct = "logistic")
+    return(build.new.model)
+}
+
+test.model.new <- nn.model.new('greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com', 'imtellingyoudude', 'ihearditright', 'TEST', 5432)
+test.model.new
 ```
 
 ```{r}
 
-building.predictions <- function(score.model, new.data){
-  Scores.predict.new <- predict(score.model, new.data, all.units = FALSE)
+new.predictions <- function(data1, data2){
+  Scores.predict.new <- predict(data1, data2, all.units = FALSE)
   return(Scores.predict.new)
 }
 ```
@@ -201,34 +206,46 @@ mainfunction.scores <- function(server, user, password, database, port){
   #clean.new.data <- clean_building_data(got_new_data)
   #clean.all.data <- clean_building_data(got_all_data)
   #score the three types of data
-  score.model <- nn.model('model', clean.scores.data)
-  Scores.predict <- Scores.predict(score.model)
+  score.model <- nn.model(clean.scores.data)
+  #Scores.predict <- Scores.predict(score.model)
   #scores.predict.new <- nn.model(clean.new.data)
  # scores.predict.all <- nn.model(clean.all.data)
   #neuralnet.scores <- build.new.model(got_scores_data, got_new_data, got_all_data)
-  return(Scores.predict)
+  return(score.model)
 }
 
 #test.final <- mainfunction(test.clean.model)
 
-mainfunction('greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com', 'eotanez', 's4I8$cPPRX5x', 'TEST', 5432)
+mainfunction('greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com', 'itsbopbeebeebopboo', 'ithinkilostit', 'TEST', 5432)
+```
+```{r}
+subfunction.new <- function(server, user, password, database, port){
+  got_scores_data <- get_data("scores", as.character(server), as.character(user), as.character(password), as.character(database), port)
+  clean.scores.data <- clean_building_data(got_scores_data)
+  sub.model <- nn.model.new(clean.scores.data)
+  return(sub.model)
+}
+
+subfunction.new(test.clean.scores)
 ```
 
 ```{r}
 mainfunction.new <- function(server, user, password, database, port){
   #get the data
-  got_scores_data <- get_data("scores", as.character(server), as.character(user), as.character(password), as.character(database), port)
+  #got_scores_data <- get_data("scores", as.character(server), as.character(user), as.character(password), as.character(database), port)
   got_new_data <- get_data("new", as.character(server), as.character(user), as.character(password), as.character(database), port)
   #clean the data
-  clean.scores.data <- clean_building_data(got_scores_data)
+  #clean.scores.data <- clean_building_data(got_scores_data)
   clean.new.data <- clean_building_data(got_new_data)
+  #load in the subfunction
+  model.new <- nn.model.new('greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com', 'itoldyoududeits', 'beebeebeebopbopbooboo', 'TEST', 5432)
   #predict with scores first
-  scores.predict.scores <- nn.model('model', clean.scores.data)
+  #scores.predict.scores <- nn.model.new(clean.scores.data)
   #then predict with new
-  Scores.predict.new <- building.predictions(scores.predict.scores, clean.new.data)
+  Scores.predict.new <- new.predictions(model.new, clean.new.data)
   return(Scores.predict.new)
 }
 
-mainfunction.new('greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com', 'eotanez', 's4I8$cPPRX5x', 'TEST', 5432)
+mainfunction.new('greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com', 'beepboopbop', 'ithinkilostittoo', 'TEST', 5432)
 ```
 
