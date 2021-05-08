@@ -6,7 +6,7 @@ from combine_var import getConn
 import sys
 
 
-
+#Run R script for KNN sale building data
 def calc_knn_sale(user,password,host,database,port):
     r = robjects.r
     r['source']('for_sale_KNN_dynamic_script.R')  #object of R file
@@ -16,6 +16,7 @@ def calc_knn_sale(user,password,host,database,port):
     return df_result
 
 
+#Run R script for KNN census block group data
 def calc_knn_census(user,password,host,database,port):
     r = robjects.r
     r['source']('census_KNN_dynamic_script.R')  #object of R file
@@ -25,6 +26,7 @@ def calc_knn_census(user,password,host,database,port):
     return df_result
 
 
+#Run R script for Neural Net sale building data
 def calc_neuralnet_sale(user,password,host,database,port):
     r = robjects.r
     r['source']('nn_building_script.R')  #object of R file
@@ -33,7 +35,7 @@ def calc_neuralnet_sale(user,password,host,database,port):
     df_result = pandas2ri.rpy2py(df_result_r)
     return df_result
 
-
+#Run R script for Neural Net census block group data
 def calc_neuralnet_census(user,password,host,database,port):
     r = robjects.r
     r['source']('nn_census_script.R')  #object of R file
@@ -43,12 +45,13 @@ def calc_neuralnet_census(user,password,host,database,port):
     return df_result
 
 
+#Takes a dataframe and uploads to SQL server
 def update_db_score(conn,df,model,is_building=True):
     if conn is None:
         return False
     if model is None:
         return False
-    if is_building:
+    if is_building:  #Building dataframe being used
         table_name="Building_Model_Score"
         id_name="cs_id"
         constraint_name="building_model_pk"
@@ -123,20 +126,24 @@ def main(conn=None):
         password=database_config['password']
     else:
         sys.exit("Configuration file not present")
-    success=[]
+    success=[] #Run each R model one at a time and store if they were successfully run
     print("Running KNN Sale Model")
     df = calc_knn_sale(user,password,host,database,port)
     model = str(int(df['model_id'].iat[0]))
     success.append(update_db_score(conn,df,model))
+
     print("Running KNN Census Model")
     df = calc_knn_census(user,password,host,database,port)
     success.append(update_db_score(conn,df,14,is_building=False))
+
     print("Running Neural Network Sale Model")
     df = calc_neuralnet_sale(user,password,host,database,port)
     success.append(update_db_score(conn,df,15))
+
     print("Running Neural Network Census Model")
     df = calc_neuralnet_census(user,password,host,database,port)
     success.append(update_db_score(conn,df,16,is_building=False))
+
     return success
 
 
