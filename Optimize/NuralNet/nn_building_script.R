@@ -134,7 +134,7 @@ clean_building_data <- function(dataframe){
   return(out)
 }
 
-nn.model <- function(data){
+nn.model.score <- function(data){
   #insert model
   set.seed(3)
   build.new.model <- neuralnet(Average_Building_Score ~ Price + SquareFeet + City_Tacoma + City_Puyallup + Property_Type_Industrial + 
@@ -145,29 +145,71 @@ nn.model <- function(data){
   predict.scores <- predicted.scores$rep1[,10]
   norm.predict.scores <- predict.scores * 5
   Scores.predict <- data.frame(data$CS_ID, norm.predict.scores)
-  
   return(Scores.predict)
 }
 
-mainfunction <- function(server, user, password, database, port){
-  #get the three types of data
+nn.model.new <- function(server, user, password, database, port, data){
   got_scores_data <- get_data("scores", as.character(server), as.character(user), as.character(password), as.character(database), port)
-  got_new_data <- get_data("new", as.character(server), as.character(user), as.character(password), as.character(database), port)
-  got_all_data <- get_data("all", as.character(server), as.character(user), as.character(password), as.character(database), port)
-  #clean the three types of data
-  clean.scores.data <- clean_building_data(got_scores_data)
-  clean.new.data <- clean_building_data(got_new_data)
-  clean.all.data <- clean_building_data(got_all_data)
-  #score the three types of data
-  scores.predict.scores <- nn.model(clean.scores.data)
-  scores.predict.new <- nn.model(clean.new.data)
-  scores.predict.all <- nn.model(clean.all.data)
-  #neuralnet.scores <- build.new.model(got_scores_data, got_new_data, got_all_data)
-  return(scores.predict.scores)
+  cleaned.scores.data <- clean_building_data(got_scores_data)
+  #insert model
+  set.seed(3)
+  build.new.model <- neuralnet(Average_Building_Score ~ Price + SquareFeet + City_Tacoma + City_Puyallup + Property_Type_Industrial + 
+                                 Property_Type_Office + Sale_Type_Investment + Sale_Type_Investment_or_Owner_User + Sale_Type_Owner_User, 
+                               data = cleaned.scores.data, linear.output = T, hidden = c(5,1), act.fct = "logistic")
+  return(build.new.model)
 }
 
-mainfunction('greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com', '', '', 'TEST', 5432)
+new.predictions <- function(data1, data2){
+  Scores.predict.new <- predict(data1, data2, all.units = FALSE)
+  return(Scores.predict.new)
+}
 
+mainfunction.scores <- function(server, user, password, database, port){
+  
+  got_scores_data <- get_data("scores", as.character(server), as.character(user), as.character(password), as.character(database), port)
+  
+  clean.scores.data <- clean_building_data(got_scores_data)
+  
+  score.model <- nn.model(clean.scores.data)
+  
+  return(score.model)
+}
 
-#setwd("D:/Templates/UW Stuff/Classes/MSBA/Classes/Q4 Models/Tuning/NuralNet")
-#write.csv(test_file2, "D:/Templates/UW Stuff/Classes/MSBA/Classes/Q4 Models/Tuning/NuralNet\\TESTFunction2.csv", row.names = FALSE)
+mainfunction.scores('greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com', 'xxx', 'xxxxxx', 'TEST', 5432)
+
+mainfunction.new <- function(server, user, password, database, port){
+  #get the data
+  
+  got_new_data <- get_data("new", as.character(server), as.character(user), as.character(password), as.character(database), port)
+  #clean the data
+  
+  clean.new.data <- clean_building_data(got_new_data)
+  #load in the subfunction
+  
+  model.new <- nn.model.new('greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com', 'xxx', 'xxxxxx', 'TEST', 5432)
+  
+  #then predict with new
+  
+  Scores.predict.new <- new.predictions(model.new,clean.new.data) * 5
+  return(Scores.predict.new)
+}
+
+mainfunction.new('greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com', 'xxx', 'xxxxxx', 'TEST', 5432)
+
+mainfunction.all <- function(server, user, password, database, port){
+  #get the data
+  
+  got_all_data <- get_data("all", as.character(server), as.character(user), as.character(password), as.character(database), port)
+  #clean the data
+  
+  clean.all.data <- clean_building_data(got_all_data)
+  #load in the subfunction
+  
+  model.all <- nn.model.new('greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com', 'xxx', 'xxxxxx', 'TEST', 5432)
+  #predict with scores first
+  
+  Scores.predict.all <- new.predictions(model.all, clean.all.data) * 5
+  return(Scores.predict.all)
+}
+
+mainfunction.all('greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com', 'xxx', 'xxx', 'TEST', 5432)
