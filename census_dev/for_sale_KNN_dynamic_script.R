@@ -1,10 +1,10 @@
-library(DBI)
-library(odbc)
-library(data.table)
-library(caret)
-library(FNN)
-library(class)
-library(psych)
+library(DBI, quietly = TRUE, warn.conflicts = FALSE)
+library(odbc, quietly = TRUE, warn.conflicts = FALSE)
+library(data.table, quietly = TRUE, warn.conflicts = FALSE)
+library(caret, quietly = TRUE, warn.conflicts = FALSE)
+library(FNN, quietly = TRUE, warn.conflicts = FALSE)
+library(class, quietly = TRUE, warn.conflicts = FALSE)
+library(psych, quietly = TRUE, warn.conflicts = FALSE)
 
 #This creates the connection to the database and returns the query depending on if the user wants "scored" or "new" data.
 get_data <- function(scored_or_new, server, user, password, database,port){

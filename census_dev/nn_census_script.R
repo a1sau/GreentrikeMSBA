@@ -1,19 +1,19 @@
-library(DBI)
-library(sqldf)
-library(dplyr)
-library(neuralnet)
-library(Metrics)
-library(caret)
-library(config)
-library(datapackage.r)
-library(jsonlite)
-library(fastDummies)
-library(datarium)
-library(ggplot2)
+library(DBI, quietly = TRUE, warn.conflicts = FALSE)
+library(sqldf, quietly = TRUE, warn.conflicts = FALSE)
+library(dplyr, quietly = TRUE, warn.conflicts = FALSE)
+library(neuralnet, quietly = TRUE, warn.conflicts = FALSE)
+library(Metrics, quietly = TRUE, warn.conflicts = FALSE)
+library(caret, quietly = TRUE, warn.conflicts = FALSE)
+library(config, quietly = TRUE, warn.conflicts = FALSE)
+library(datapackage.r, quietly = TRUE, warn.conflicts = FALSE)
+library(jsonlite, quietly = TRUE, warn.conflicts = FALSE)
+library(fastDummies, quietly = TRUE, warn.conflicts = FALSE)
+library(datarium, quietly = TRUE, warn.conflicts = FALSE)
+library(ggplot2, quietly = TRUE, warn.conflicts = FALSE)
 
 
 get_data <- function(scores_or_new, server, user, password, database, port){
-  library(odbc)
+  library(odbc, quietly = TRUE, warn.conflicts = FALSE)
   con <- DBI::dbConnect(odbc::odbc(),
                         driver = "PostgreSQL Unicode(x64)",
                         database = as.character(database),

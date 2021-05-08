@@ -6,6 +6,7 @@ from combine_var import getConn
 import sys
 
 
+
 def calc_knn_sale(user,password,host,database,port):
     r = robjects.r
     r['source']('for_sale_KNN_dynamic_script.R')  #object of R file
@@ -68,15 +69,24 @@ def update_db_score(conn,df,model,is_building=True):
             column_list=['bg_geo_id','score']
             raw_available=False
     cur=conn.cursor()
+    print("Updating database",end='')
+    max_count=df.shape[0]
+    ten_percent=round(max_count/10)
+    if ten_percent == 0:
+        ten_percent = 1
+    count=0
     try:
         for row in df[column_list].itertuples(index=False):
+            count+=1
+            if count % ten_percent == 0:
+                print(" ...",(count // ten_percent)*10," %",end="",sep="")
             id = row[0]
             score = row[1]
             if raw_available:
                 raw_score = row[2]
             else:
                 raw_score = "NULL"
-            print("Updating:",id,score,raw_score)
+            # print("Updating:",id,score,raw_score)
             if id is None:
                 continue
             if score is None:
@@ -94,6 +104,7 @@ def update_db_score(conn,df,model,is_building=True):
     except Exception as e:
         print("SQL command to update scores has failed:",e)
         return False
+    print('\n')
     return True
 
 

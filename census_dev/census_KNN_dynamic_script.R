@@ -1,13 +1,13 @@
-library(DBI)
-library(odbc)
-library(data.table)
-library(caret)
-library(FNN)
-library(class)
-library(psych)
+library(DBI, quietly = TRUE, warn.conflicts = FALSE)
+library(odbc, quietly = TRUE, warn.conflicts = FALSE)
+library(data.table, quietly = TRUE, warn.conflicts = FALSE)
+library(caret, quietly = TRUE, warn.conflicts = FALSE)
+library(FNN, quietly = TRUE, warn.conflicts = FALSE)
+library(class, quietly = TRUE, warn.conflicts = FALSE)
+library(psych, quietly = TRUE, warn.conflicts = FALSE)
 #SQL query to get data frames for either "scored" or "new" block groups 
 get_data <- function(scored_or_new, server, user, password, database,port=5432){
-  library(odbc)
+  library(odbc, quietly = TRUE, warn.conflicts = FALSE)
   bg.scored.3ms.raw ='SELECT BGD.bg_geo_id, BGD.variable_id, BGD.Value,
                       round((select avg(bgs.score) from "BG_Score" as BGS where BGS.bg_geo_id=BGD.bg_geo_id)) as score 
                       FROM "BG_Data" BGD 
