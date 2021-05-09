@@ -401,7 +401,6 @@ def main():
         if (password == "") or (email_config['email'] == ""):
             sys.exit("Update ""config.ini"" with email and password before running script again.")
         new_scores = check_email(email_config['email'],password,conn)
-        new_scores=True
         if new_scores:
             update_user_scores(conn,'attachment','archive')
             os.chdir(old_work_dir) #restore old working directory in case config needs to be reloaded
