@@ -13,3 +13,6 @@ census_dev/.idea/workspace.xml
 .idea/inspectionProfiles/profiles_settings.xml
 .idea/misc.xml
 .idea/modules.xml
+census_dev/.RData
+census_dev/.Rhistory
+Optimize/kNN/.RData
