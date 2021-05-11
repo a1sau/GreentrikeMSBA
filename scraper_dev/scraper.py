@@ -35,6 +35,8 @@ def grab_placards():  ## NOTE -- this only searches properties that are listed f
     url_list = [item for sublist in loopnet_links for item in sublist]
     return url_list
 
+
+
 def listing_info(url_list):
     count= 0
     Buildings = []
@@ -244,11 +246,11 @@ def update_sale_listings(result):
             off_market.append(i[0])
         sleep(randint(3, 8))
         # find if information has been changed (price)
-        # return CS_ID, if information has been changed, what new values are, and if listing is active
+            # return CS_ID, if information has been changed, what new values are, and if listing is active
     print(off_market)
     return off_market
 
-def buildings_export(property_info):
+def sale_buildings_csv_export(property_info):
     export_time = datetime.now().strftime("%Y_%m_%d-%I_%M_%S_%p")
     with open('loopnet_listings_{}.csv'.format(export_time), 'w', newline='\n') as f:
         w = csv.DictWriter(f, property_info[0].keys())
@@ -268,24 +270,13 @@ def sale_export(property_info):
         listings.append(row)
     return listings
 
-def csv_or_list():
-    x = input("Press 'y' to get a .csv of the for sale listing scraped today, Press 'n' to get a list. :")
-    if x.isnumeric():
-        print("Please enter only y or n.")
-    x = x.lower()
-    return x
-
 def main():
     output = csv_or_list()
     print('Grab placards')
     url_list = grab_placards()
     print('Checking Listings')
     property_info = listing_info(url_list)
-    if output == 'y':
-        print('Exporting list to file.')
-        buildings_export(property_info)
-    elif output == 'n':
-        sale_export(property_info)
+    sale_buildings_csv_export(property_info)
 
 
 if __name__ == '__main__':

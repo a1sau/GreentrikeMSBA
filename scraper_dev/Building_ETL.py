@@ -134,7 +134,11 @@ def lease_insert():  # Found def config and def connect from https://www.postgre
     """ Connect to the PostgreSQL database server """
     conn = None
     url_list = lease.grab_placards()
-    property_info = lease.building_dict(url_list)
+    print("comparing placards to existing records in database")
+    cur_url = current_urls()
+    print("Scraping data on new listings")
+    cleaned_url_list = lease.listing_checker(cur_url,url_list)
+    property_info = lease.building_dict(cleaned_url_list)
     lease_listings = lease.lease_export(property_info)
     try:
         params = config()  # read connection parameters
@@ -173,7 +177,12 @@ def sale_insert():  # Found def config and def connect from https://www.postgres
     """ Connect to the PostgreSQL database server """
     conn = None
     url_list = sale.grab_placards()
-    property_info = sale.listing_info(url_list)
+    print("comparing placards to existing records in database")
+    cur_url = current_urls()
+    print("Scraping data on new listings")
+    cleaned_url_list = lease.listing_checker(cur_url,url_list)
+    print("Found {} new listings.".format(len(cleaned_url_list)))
+    property_info = sale.listing_info(cleaned_url_list)
     sale_listings = sale.sale_export(property_info)
     try:
         params = config()  # read connection parameters
@@ -181,6 +190,7 @@ def sale_insert():  # Found def config and def connect from https://www.postgres
         conn = psycopg2.connect(**params)
         ##
         etl_csid = 'SELECT "CS_ID" FROM "ETL_Building";'
+        cur = conn.cursor()
         cur.execute(etl_csid)  # execute a statement
         etl_csid_list = cur.fetchall()  # Fetch the results of the statement (Notice fetchone ONLY grabs the first record of the result)
         csid_list = [t[0] for t in etl_csid_list]
@@ -263,6 +273,24 @@ def find_current_listings():
         if conn is not None:
             conn.close()
             print('Database connection closed.')
+def current_urls():
+    """ Connect to the PostgreSQL database server """
+    conn = None
+    try:
+        params = config()  # read connection parameters
+        conn = psycopg2.connect(**params)
+        cur = conn.cursor()
+        querry = 'SELECT "url" FROM "Building" WHERE "Currently_listed" = true;'
+        cur.execute(querry)
+        result = cur.fetchall()
+        conn.close()
+    except (Exception, psycopg2.DatabaseError) as error:
+        print(error)  # TODO Change this to error logging? (or find what the correct terminology is.)
+    finally:
+        if conn is not None:
+            conn.close()
+    return result
+
 
 def main():
     sale_insert()
