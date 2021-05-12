@@ -247,7 +247,7 @@ def update_sale_listings(result):
         sleep(randint(3, 8))
         # find if information has been changed (price)
             # return CS_ID, if information has been changed, what new values are, and if listing is active
-    print(off_market)
+    #print(off_market)
     return off_market
 
 def sale_buildings_csv_export(property_info):

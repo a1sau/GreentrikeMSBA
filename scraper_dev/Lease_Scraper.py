@@ -165,12 +165,18 @@ def update_lease_listings():
         # find if information has been changed (price)
         # return CS_ID, if information has been changed, what new values are, and if listing is active
     return None
+
 #Function to take in list of urls that are on the database, compare with things just listed and gives new records so we dont grab new information.
-def listing_checker(database_list,grab_placards_list):
+def listing_checker(database_list,grab_placards_list): #database_list,grab_placards_list
     new_listings = []
-    for i in grab_placards_list:
-        if i not in database_list:
-            new_listings.append(i)
+    print(len(database_list))
+    print(len(grab_placards_list))
+    for t in database_list:
+        if t[0] in grab_placards_list:
+            print("This url {} is already in the database".format(t[0]))
+        else:
+            print("This url {} is not in the database".format(t[0]))
+            new_listings.append(t[0])
     return new_listings
 
 def lease_buildings_csv_export(property_info):

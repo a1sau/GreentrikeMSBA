@@ -134,11 +134,7 @@ def lease_insert():  # Found def config and def connect from https://www.postgre
     """ Connect to the PostgreSQL database server """
     conn = None
     url_list = lease.grab_placards()
-    print("comparing placards to existing records in database")
-    cur_url = current_urls()
-    print("Scraping data on new listings")
-    cleaned_url_list = lease.listing_checker(cur_url,url_list)
-    property_info = lease.building_dict(cleaned_url_list)
+    property_info = lease.building_dict(url_list)
     lease_listings = lease.lease_export(property_info)
     try:
         params = config()  # read connection parameters
@@ -177,12 +173,7 @@ def sale_insert():  # Found def config and def connect from https://www.postgres
     """ Connect to the PostgreSQL database server """
     conn = None
     url_list = sale.grab_placards()
-    print("comparing placards to existing records in database")
-    cur_url = current_urls()
-    print("Scraping data on new listings")
-    cleaned_url_list = lease.listing_checker(cur_url,url_list)
-    print("Found {} new listings.".format(len(cleaned_url_list)))
-    property_info = sale.listing_info(cleaned_url_list)
+    property_info = sale.listing_info(url_list)
     sale_listings = sale.sale_export(property_info)
     try:
         params = config()  # read connection parameters
@@ -273,6 +264,8 @@ def find_current_listings():
         if conn is not None:
             conn.close()
             print('Database connection closed.')
+
+
 def current_urls():
     """ Connect to the PostgreSQL database server """
     conn = None
@@ -296,6 +289,7 @@ def main():
     sale_insert()
     lease_insert()
     etl_to_primary()
+    find_current_listings()
 
 
 if __name__ == '__main__':
