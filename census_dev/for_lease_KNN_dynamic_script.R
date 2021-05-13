@@ -1,20 +1,15 @@
----
-title: "lease_knn_template"
-author: "Benjamin Pope"
-date: "4/27/2021"
-output: word_document
----
+library(DBI, quietly = TRUE, warn.conflicts = FALSE)
+library(odbc, quietly = TRUE, warn.conflicts = FALSE)
+library(data.table, quietly = TRUE, warn.conflicts = FALSE)
+library(caret, quietly = TRUE, warn.conflicts = FALSE)
+library(FNN, quietly = TRUE, warn.conflicts = FALSE)
+library(class, quietly = TRUE, warn.conflicts = FALSE)
+library(psych, quietly = TRUE, warn.conflicts = FALSE)
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
-```{r}
 #Requires odbc and caret installed 
 #This creates the connection to the database and returns the query depending on if the user wants "scored" or "new" data.
 get_data <- function(scored_or_new, server, user, password, database){
-  library(odbc)
-    con <- DBI::dbConnect(odbc::odbc(),
+  con <- DBI::dbConnect(odbc::odbc(),
                         driver = "PostgreSQL Unicode(x64)",
                         database = as.character(database),
                         UID      = as.character(user),
@@ -36,7 +31,7 @@ get_data <- function(scored_or_new, server, user, password, database){
                         FROM "Building" b
                         LEFT JOIN "Building_Score" BS on b."CS_ID" = BS.cs_id
                         WHERE "Sale_Lease" = \'Lease\';'
-
+  
   if(scored_or_new == 'scored'){
     df <- dbGetQuery(con,scored_lease_buildings)
   }
@@ -50,7 +45,6 @@ get_data <- function(scored_or_new, server, user, password, database){
 }
 # This takes the data frame from get_data(), and cleans the categorical variables, normalizes numerical variables and standardizes the output data frame. 
 clean_lease_data <- function(lease_df){
-  library(caret)
   #  *MAY CHANGE*  We can see if expansion square feet should retain original values, or just be marked as an option.
   lease_df$Expansion_sqft <- ifelse(is.na(lease_df$Expansion_sqft),0,1)
   # TODO look into alternative way to handle missing prices (high value, mean) and see if we can eliminate them higher up the data pipeline.
@@ -186,41 +180,3 @@ main_forlease_knn <- function(user, password, server, database){
   knn.scores <- for_lease_KNN_model(clean_scored_data, clean_new_data,find_best_knn(clean_scored_data))
   return(knn.scores)
 }
-```
-
-
-```{r}
-lease_scored <- get_data('scored',"greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com","bpope","somepassword","TEST")
-
-lease_new <- get_data('new',"greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com","bpope","somepassword","TEST")
-
-lease_all <- get_data('all',"greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com","bpope","somepassword","TEST")
-
-clean_scored_buildings <- clean_lease_data(lease_scored)
-clean_new_buildings <- clean_lease_data(lease_new)
-clean_all_buildings <- clean_lease_data(lease_all)
-
-ten_new <- clean_all_buildings[1:10,16:17]
-fixed_clean <- cbind(clean_scored_buildings, ten_new)
-
-find_best_knn(fixed_clean)
-
-
-for_lease_KNN_model(fixed_clean,clean_new_buildings,1)
-```
-
-Things to consider:
-
-  1.NA values
-    expansion sqft
-    price
-  2.ensure integer are double precision
-    done in SQL import, or r?
-  3.dummy variables
-    which ones are necessary for MVP?
-      choose from (city, property_type, avaliable, term)
-    How to handle edge cases / new categories for each variable
-      function to analyze and sort variables
-      cutoff point for variables (example, city has 3 variables: Tacoma, Puyallup, other)
-  4.ensure columns will remain in order
-    must lock dummy variable length *OR* ensure columns match for train to validate.
