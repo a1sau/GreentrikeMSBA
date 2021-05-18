@@ -16,7 +16,7 @@ def build_import_csv(infile: str, outfile_str: str):
             var_list.append(column)
             print("SUCCESS:",column)
         else:
-            print("FAIL:", column)
+            print("SKIPPED:", column)
     # print("VAR:",var_list)
     column_list = var_list.copy()
     column_list.append("GEOID")
@@ -40,6 +40,6 @@ def build_import_csv(infile: str, outfile_str: str):
 
 
 # build_import_csv(r'C:\Users\Lugal\OneDrive\Documents\MSBA\Project\pierceCensus4.csv',r'C:\Users\Lugal\OneDrive\Documents\MSBA\Project\pierceCensus4OUT.csv')
-build_import_csv(r'C:\Users\Lugal\OneDrive\Documents\MSBA\Project\pierceCensus10.csv',
-                 r'C:\Users\Lugal\OneDrive\Documents\MSBA\Project\pierceCensus_nonull_1_15_20_OUT.csv')
+build_import_csv(r'C:\Users\Lugal\OneDrive\Documents\MSBA\Project\PierceCensus_tract_2018_May2021C.csv',
+                 r'C:\Users\Lugal\OneDrive\Documents\MSBA\Project\PierceCensus_tract_nonull_5_13_21_OUT.csv')
 ##Output = GEOID,variable_ID,value

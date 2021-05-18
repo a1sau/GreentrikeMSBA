@@ -144,6 +144,12 @@ def main(conn=None):
     df = calc_neuralnet_census(user,password,host,database,port)
     success.append(update_db_score(conn,df,16,is_building=False))
 
+    print("Running Building Ensemble")
+    success.append(calc_ensemble_sale(conn))
+
+    print("Running Census Ensemble")
+    success.append(calc_ensemble_census(conn))
+
     return success
 
 
