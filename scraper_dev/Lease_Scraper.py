@@ -22,7 +22,7 @@ def grab_placards():  ## NOTE -- this only searches properties that are listed f
     t_listings = t_listings.strip()
     t_listings = int(t_listings[-3:])
     pages = (t_listings//20) +2## uses the number of listings to determine how many pages are in the results.
-    print(f"Found {t_listings} placards across {pages -1} pages.\nStarting to Collect URL's")
+    print(f"Found {t_listings} placards across {pages -1} pages.\nStarting to Collect URL's of for lease properties.")
         ### This is what go to the search and pulls every listing url from the search page(s)
     for i in range(1,pages):      # loops equal to the number of pages in the search
         url = "https://www.loopnet.com/search/commercial-real-estate/pierce-county-wa/for-lease/{}/".format(i)  # Looks to this URL, increasing in page numbers.
@@ -37,21 +37,20 @@ def grab_placards():  ## NOTE -- this only searches properties that are listed f
 
 def building_dict(url_list):
     buildings = []
+    progress = 0
     for link in url_list:
         url = "{}".format(link)  # Puts the list link in the loop
         r = requests.get(url, headers=headers)
         page_soup = bs(r.content, features="html.parser")
         # The titles in order are "Space", "Size", "Term", "Rate", "Space_Use", "Condition", "Available"
         units = page_soup.find_all("ul", class_="available-spaces__accordion-data no-margin js-as-column-width")
-        #units_txt = []
+        progress += 1
         counter = 1 # Used to ensure unique CS_ID
-        print(url)
+        print(progress, url)
         for item in units:
             site_facts = {}
             unit_temp = item.get_text("|", strip=True)
             units_txt = unit_temp.split("|")
-            #units_txt.append(unit_temp)
-            #Gets the Address_Line through bg_geo_id #
             loc = page_soup.find("h1", class_="breadcrumbs__crumb breadcrumbs__crumb-title")  # Finds the address on page.
             try:  # If location doesn't have address, go to next item)
                 loc = loc.get_text()
@@ -78,6 +77,7 @@ def building_dict(url_list):
                     site_facts['bg_geo_id'] = GEOID
                     print(site_facts['Address_Line'], site_facts['City'], GEOID)
                 except Exception as err:
+                    site_facts['bg_geo_id'] = None
                     pass
             else:
                 site_facts['Address_Line'] = loc
@@ -141,7 +141,7 @@ def building_dict(url_list):
             # Upload_Date
             site_facts['Upload_Date'] = datetime.now().strftime("%Y-%m-%d")
             # Currently_Listed
-            site_facts["Currently_Listed"] = False
+            site_facts["Currently_Listed"] = True
             # Sale_Lease
             site_facts['Sale_Lease'] = "Lease"
             #Append to buildings
@@ -151,7 +151,35 @@ def building_dict(url_list):
         sleep(randint(5,10))
     return buildings
 
-def buildings_export(property_info):
+def update_lease_listings():
+    # Given a list of urls:
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:82.0) Gecko/20100101 Firefox/82.0'}
+    off_market = []
+    for i in listings: # go to each link
+        r_page = requests.get(i[1], headers=headers)  # Gets the information from the page
+        s = bs(r_page.content, features="html.parser")  # Turns to bs object.
+        if s.find('div', class_="off-market-banner"): # find if listing is still active
+            off_market.append(i[0])
+        sleep(randint(3,8))
+        # find if listing is still active
+        # find if information has been changed (price)
+        # return CS_ID, if information has been changed, what new values are, and if listing is active
+    return None
+
+#Function to take in list of urls that are on the database, compare with things just listed and gives new records so we dont grab new information.
+def listing_checker(database_list,grab_placards_list): #database_list,grab_placards_list
+    new_listings = []
+    print(len(database_list))
+    print(len(grab_placards_list))
+    for t in database_list:
+        if t[0] in grab_placards_list:
+            print("This url {} is already in the database".format(t[0]))
+        else:
+            print("This url {} is not in the database".format(t[0]))
+            new_listings.append(t[0])
+    return new_listings
+
+def lease_buildings_csv_export(property_info):
     export_time = datetime.now().strftime("%Y_%m_%d-%I_%M_%p")
     with open('loopnet_listings_lease_{}.csv'.format(export_time), 'w', newline='\n') as f:
         w = csv.DictWriter(f, property_info[0].keys())
@@ -160,6 +188,17 @@ def buildings_export(property_info):
             w.writerow(i)
     f.close()
 
+def lease_export(property_info):
+    listings = []
+    for i in property_info:
+        # TODO Match this format to the columns in the database for easy etl.
+
+        row = (i['Address_Line'],i['City'],i['State'],i['Postal_Code'],i['Property_Type'],i['bg_geo_id'],
+               i['CS_ID'],i['url'],None, i['SquareFeet'], None, None,
+               None, None, i['Upload_Date'], i['Currently_Listed'], i['Sale_Lease'], None, i['Price_month'],
+               i['Price_year'],i['Expansion_SqrFt'],i['Space'],i['Condition'],i['Available'],i['Term'])
+        listings.append(row)
+    return listings
 
 
 def main():
@@ -168,8 +207,9 @@ def main():
     print('Checking Listings')
     property_info = building_dict(url_list)
     print('Export list to file')
-    buildings_export(property_info)
-
+    lease_buildings_csv_export(property_info)
+    #lease_export(property_info)
+    #update_lease_listings()
 
 if __name__ == '__main__':
     main()

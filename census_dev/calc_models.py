@@ -45,6 +45,61 @@ def calc_neuralnet_census(user,password,host,database,port):
     return df_result
 
 
+def calc_ensemble_sale(conn):
+    if conn is None:
+        return False
+    try:
+        cur=conn.cursor()
+        sql_command = """
+                insert into "Building_Model_Score" (cs_id, model_id, raw_score, score, date_calculated) select 
+                    cs_id
+                    ,avg(score)
+                    ,17
+                    ,round(avg(score))
+                    ,now()::date
+                    FROM "Building_Model_Score" as bms
+                    where bms.model_id in (13,15)
+                    GROUP BY cs_id
+                on conflict on constraint building_model_pk do update
+                set score = excluded.score,
+                raw_score = excluded.raw_score,
+                date_calculated = excluded.date_calculated;
+        """
+        cur.execute(sql_command)
+        conn.commit()
+    except Exception as e:
+        print("Ensemble update failed:",e)
+        return False
+    return True
+
+def calc_ensemble_census(conn):
+    if conn is None:
+        return False
+    try:
+        cur=conn.cursor()
+        sql_command = """
+            insert into "BG_Model_Score" (bg_geo_id, model_id, raw_score, score, date_calculated) select 
+                bg_geo_id
+                ,avg(score)
+                ,18
+                ,round(avg(score))
+                ,now()::date
+                FROM "BG_Model_Score" as bms
+                where bms.model_id in (14,16)
+                GROUP BY bg_geo_id
+            on conflict on constraint bg_model_pk do update
+            set score = excluded.score,
+            raw_score = excluded.raw_score,
+            date_calculated = excluded.date_calculated;
+    """
+        cur.execute(sql_command)
+        conn.commit()
+    except Exception as e:
+        print("Ensemble update failed:",e)
+        return False
+    return True
+
+
 #Takes a dataframe and uploads to SQL server
 def update_db_score(conn,df,model,is_building=True):
     if conn is None:
@@ -129,7 +184,7 @@ def main(conn=None):
     success=[] #Run each R model one at a time and store if they were successfully run
     print("Running KNN Sale Model")
     df = calc_knn_sale(user,password,host,database,port)
-    model = str(int(df['model_id'].iat[0]))
+    model = str(int(df['model_id'].iat[0])) #model 13
     success.append(update_db_score(conn,df,model))
 
     print("Running KNN Census Model")
@@ -147,7 +202,7 @@ def main(conn=None):
     print("Running Building Ensemble")
     success.append(calc_ensemble_sale(conn))
 
-    print("Running Census Ensemble")
+    print("running Census Ensemble")
     success.append(calc_ensemble_census(conn))
 
     return success

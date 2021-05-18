@@ -1,0 +1,273 @@
+---
+title: "For_Lease_NN"
+author: "Enrique Otanez"
+date: "5/11/2021"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(DBI)
+library(sqldf)
+library(dplyr)
+library(neuralnet)
+library(Metrics)
+library(caret)
+library(config)
+library(datapackage.r)
+library(jsonlite)
+library(fastDummies)
+library(datarium)
+library(ggplot2)
+library(ISLR)
+```
+
+```{r}
+config <- read.csv("D:/Templates/UW Stuff/Classes/MSBA/Classes/Q4 Models/Config_File.csv")
+
+UID <- config$UID
+PWD <- config$PWD
+SERVER <- config$server
+
+con <- DBI::dbConnect(odbc::odbc(),
+                      driver = "PostgreSQL Unicode(x64)",
+                      database = 'TEST',
+                      UID      = UID,
+                      PWD      = PWD,
+                      server = SERVER,
+                      port = 5432)
+```
+
+```{r}
+for.lease.all <- dbGetQuery(con, 'SELECT b."CS_ID", bs."Score", b."Sale_Lease", b."City", b."Property_Type", b."SquareFeet", b."Currently_listed", b."Price_monthly", b."Price_yearly", b."Space", b."Condition", b."Available", b."Term" FROM "Building" b LEFT JOIN "Building_Score" bs ON b."CS_ID" = bs.cs_id WHERE b."Sale_Lease" = \'Lease\';')
+
+for.lease.scores <- dbGetQuery(con, 'SELECT b."CS_ID", bs."Score", b."Sale_Lease", b."City", b."Property_Type", b."SquareFeet", b."Currently_listed", b."Price_monthly", b."Price_yearly", b."Space", b."Condition", b."Available", b."Term" FROM "Building" b INNER JOIN "Building_Score" bs ON b."CS_ID" = bs.cs_id WHERE b."Sale_Lease" = \'Lease\';')
+
+for.lease.new <- dbGetQuery(con, 'SELECT b."CS_ID", bs."Score", b."Sale_Lease", b."City", b."Property_Type", b."SquareFeet", b."Currently_listed", b."Price_monthly", b."Price_yearly", b."Space", b."Condition", b."Available", b."Term" FROM "Building" b LEFT JOIN "Building_Score" bs ON b."CS_ID" = bs.cs_id WHERE b."Sale_Lease" = \'Lease\' OR bs."Score" IS NULL;')
+
+for.lease.all
+for.lease.scores
+for.lease.new
+```
+
+```{r}
+for.lease.all <- fastDummies::dummy_cols(for.lease.all, select_columns = "City")
+for.lease.all <- fastDummies::dummy_cols(for.lease.all, select_columns = "Property_Type")
+for.lease.all <- fastDummies::dummy_cols(for.lease.all, select_columns = "Condition")
+for.lease.all <- fastDummies::dummy_cols(for.lease.all, select_columns = "Available")
+
+for.lease.scores <- fastDummies::dummy_cols(for.lease.scores, select_columns = "City")
+for.lease.scores <- fastDummies::dummy_cols(for.lease.scores, select_columns = "Property_Type")
+for.lease.scores <- fastDummies::dummy_cols(for.lease.scores, select_columns = "Condition")
+for.lease.scores <- fastDummies::dummy_cols(for.lease.scores, select_columns = "Available")
+
+for.lease.new <- fastDummies::dummy_cols(for.lease.new, select_columns = "City")
+for.lease.new <- fastDummies::dummy_cols(for.lease.new, select_columns = "Property_Type")
+for.lease.new <- fastDummies::dummy_cols(for.lease.new, select_columns = "Condition")
+for.lease.new <- fastDummies::dummy_cols(for.lease.new, select_columns = "Available")
+
+for.lease.all
+for.lease.new
+for.lease.scores
+```
+```{r}
+names(for.lease.all)[names(for.lease.all) == "Condition_Full Build-Out"] <- "Condition_Full_Build_Out"
+names(for.lease.all)[names(for.lease.all) == "Condition_Not Listed"] <- "Condition_Not_Listed"
+names(for.lease.all)[names(for.lease.all) == "Condition_Partial Build-Out"] <- "Condition_Partial_Build_Out"
+names(for.lease.all)[names(for.lease.all) == "Available_30 Days"] <- "Available_30_Days"
+
+names(for.lease.scores)[names(for.lease.scores) == "Condition_Full Build-Out"] <- "Condition_Full_Build_Out"
+names(for.lease.scores)[names(for.lease.scores) == "Condition_Not Listed"] <- "Condition_Not_Listed"
+names(for.lease.scores)[names(for.lease.scores) == "Condition_Partial Build-Out"] <- "Condition_Partial_Build_Out"
+names(for.lease.scores)[names(for.lease.scores) == "Available_30 Days"] <- "Available_30_Days"
+
+names(for.lease.new)[names(for.lease.new) == "Condition_Full Build-Out"] <- "Condition_Full_Build_Out"
+names(for.lease.new)[names(for.lease.new) == "Condition_Not Listed"] <- "Condition_Not_Listed"
+names(for.lease.new)[names(for.lease.new) == "Condition_Partial Build-Out"] <- "Condition_Partial_Build_Out"
+names(for.lease.new)[names(for.lease.new) == "Available_30 Days"] <- "Available_30_Days"
+
+for.lease.all
+for.lease.new
+for.lease.scores
+```
+
+```{r}
+for.lease.all <- subset(for.lease.all, select = c(CS_ID, Score, Currently_listed, Price_monthly, Price_yearly, SquareFeet, City_Puyallup, City_Tacoma, 
+                                                     Property_Type_Industrial, Property_Type_Office, Condition_Full_Build_Out, Condition_Not_Listed,                                                                    Condition_Partial_Build_Out, Available_30_Days, Available_Now))
+
+for.lease.new <- subset(for.lease.new, select = c(CS_ID, Score, Currently_listed, Price_monthly, Price_yearly, SquareFeet, City_Puyallup, City_Tacoma, 
+                                                     Property_Type_Industrial, Property_Type_Office,Condition_Full_Build_Out, Condition_Not_Listed,                                                                    Condition_Partial_Build_Out, Available_30_Days, Available_Now))
+
+for.lease.scores <- subset(for.lease.scores, select = c(CS_ID, Score, Currently_listed, Price_monthly, Price_yearly, SquareFeet, City_Puyallup, City_Tacoma, 
+                                                           Property_Type_Industrial, Property_Type_Office,Condition_Full_Build_Out, Condition_Not_Listed,                                                                    Condition_Partial_Build_Out, Available_30_Days, Available_Now))
+
+for.lease.all
+for.lease.new
+for.lease.scores
+```
+
+```{r}
+for.lease.all.non_na <- complete.cases(for.lease.all[, c("CS_ID", "Currently_listed", "Price_monthly", "Price_yearly", "SquareFeet", "City_Puyallup",                                                                      "City_Tacoma", "Property_Type_Industrial", "Property_Type_Office", "Condition_Full_Build_Out",                                                                    "Condition_Not_Listed", "Condition_Partial_Build_Out", "Available_30_Days", "Available_Now")])
+for.lease.all <- for.lease.all[for.lease.all.non_na, ]
+
+
+
+for.lease.scores.non_na <- complete.cases(for.lease.scores[, c("CS_ID", "Currently_listed", "Price_monthly", "Price_yearly", "SquareFeet",                                                                                       "City_Puyallup", "City_Tacoma", "Property_Type_Industrial", "Property_Type_Office",                                                                               "Condition_Full_Build_Out", "Condition_Not_Listed", "Condition_Partial_Build_Out",                                                                                "Available_30_Days", "Available_Now")])
+for.lease.scores <- for.lease.scores[for.lease.scores.non_na, ]
+
+
+
+for.lease.new.non_na <- complete.cases(for.lease.new[, c("CS_ID", "Currently_listed", "Price_monthly", "Price_yearly", "SquareFeet", "City_Puyallup",                                                                      "City_Tacoma", "Property_Type_Industrial", "Property_Type_Office", "Condition_Full_Build_Out",                                                                    "Condition_Not_Listed", "Condition_Partial_Build_Out", "Available_30_Days", "Available_Now")])
+for.lease.new <- for.lease.new[for.lease.new.non_na, ]
+
+for.lease.all
+for.lease.new
+for.lease.scores
+```
+
+```{r}
+for.lease.all$Score <- (for.lease.all$Score - min(for.lease.all$Score))/(max(for.lease.all$Score) - min(for.lease.all$Score))
+for.lease.all$Price_monthly <- (for.lease.all$Price_monthly - min(for.lease.all$Price_monthly))/(max(for.lease.all$Price_monthly) -                                                               min(for.lease.all$Price_monthly))
+for.lease.all$Price_yearly <- (for.lease.all$Price_yearly - min(for.lease.all$Price_yearly))/(max(for.lease.all$Price_yearly) -                                                                  min(for.lease.all$Price_yearly))
+for.lease.all$SquareFeet <- (for.lease.all$SquareFeet - min(for.lease.all$SquareFeet))/(max(for.lease.all$SquareFeet) -                                                                        min(for.lease.all$SquareFeet))
+
+for.lease.new$Score <- (for.lease.new$Score - min(for.lease.new$Score))/(max(for.lease.new$Score) - min(for.lease.new$Score))
+for.lease.new$Price_monthly <- (for.lease.new$Price_monthly - min(for.lease.new$Price_monthly))/(max(for.lease.new$Price_monthly) -                                                               min(for.lease.new$Price_monthly))
+for.lease.new$Price_yearly <- (for.lease.new$Price_yearly - min(for.lease.new$Price_yearly))/(max(for.lease.new$Price_yearly) -                                                                  min(for.lease.new$Price_yearly))
+for.lease.new$SquareFeet <- (for.lease.new$SquareFeet - min(for.lease.new$SquareFeet))/(max(for.lease.new$SquareFeet) -                                                                        min(for.lease.new$SquareFeet))
+
+for.lease.scores$Score <- (for.lease.scores$Score - min(for.lease.scores$Score))/(max(for.lease.scores$Score) - min(for.lease.scores$Score))
+for.lease.scores$Price_monthly <- (for.lease.scores$Price_monthly - min(for.lease.scores$Price_monthly))/(max(for.lease.scores$Price_monthly) -                                                      min(for.lease.scores$Price_monthly))
+for.lease.scores$Price_yearly <- (for.lease.scores$Price_yearly - min(for.lease.scores$Price_yearly))/(max(for.lease.scores$Price_yearly) -                                                         min(for.lease.scores$Price_yearly))
+for.lease.scores$SquareFeet <- (for.lease.scores$SquareFeet - min(for.lease.scores$SquareFeet))/(max(for.lease.scores$SquareFeet) -                                                               min(for.lease.scores$SquareFeet))
+
+
+for.lease.all
+for.lease.new
+for.lease.scores
+```
+
+```{r}
+for.lease.all$Currently_listed <- as.numeric(for.lease.all$Currently_listed)
+for.lease.new$Currently_listed <- as.numeric(for.lease.new$Currently_listed)
+for.lease.scores$Currently_listed <- as.numeric(for.lease.scores$Currently_listed)
+
+for.lease.all
+for.lease.new
+for.lease.scores
+```
+
+
+```{r}
+#creating the training and validation sets
+for.lease.training = sort(sample(nrow(for.lease.scores), nrow(for.lease.scores)*0.7))
+train <- for.lease.scores[for.lease.training, ]
+valid <- for.lease.scores[-for.lease.training, ]
+train
+valid
+```
+
+```{r}
+set.seed(1)
+train.model <- neuralnet(Score ~ Currently_listed + Price_monthly + Price_yearly + SquareFeet + City_Puyallup + City_Tacoma + Property_Type_Industrial + Property_Type_Office + Condition_Full_Build_Out + Condition_Not_Listed + Condition_Partial_Build_Out + Available_30_Days + Available_Now, data = train, linear.output = F, hidden = c(5,1))
+
+plot(train.model)
+```
+
+
+```{r}
+predicted.scores <- prediction(train.model)
+predicted.scores
+predict.scores <- predicted.scores$rep1[,14]
+predict.scores
+norm.predict.scores <- predict.scores * 5
+norm.predict.scores
+Scores.predict <- data.frame(train$CS_ID, norm.predict.scores)
+Scores.predict
+
+train$Scores.predict <- norm.predict.scores
+train
+```
+
+```{r}
+#rmse and confustion matrix
+train.rmse <- rmse(train$Score, predict.scores)
+train.rmse
+
+train$Score <- round(train$Score *5)
+train$Scores.predict <- round(train$Scores.predict)
+
+train["Score"][train["Score"] == 5] <- 4
+
+train
+
+
+
+train.cm <- confusionMatrix(as.factor(train$Scores.predict), as.factor(train$Score))
+train.cm
+```
+
+
+```{r}
+set.seed(1)
+valid.model <- neuralnet(Score ~ Currently_listed + Price_monthly + Price_yearly + SquareFeet + City_Puyallup + City_Tacoma + Property_Type_Industrial + Property_Type_Office + Condition_Full_Build_Out + Condition_Not_Listed + Condition_Partial_Build_Out + Available_30_Days + Available_Now, data = valid, linear.output = F, hidden = c(5,1))
+
+plot(valid.model)
+```
+
+
+```{r}
+predicted.scores.v <- prediction(valid.model)
+predicted.scores.v
+predict.scores.v <- predicted.scores.v$rep1[,14]
+predict.scores.v
+norm.predict.scores.v <- predict.scores.v * 5
+norm.predict.scores.v
+Scores.predict.v <- data.frame(valid$CS_ID, norm.predict.scores.v)
+Scores.predict.v
+
+valid$Scores.predict <- norm.predict.scores.v
+valid
+```
+
+```{r}
+#rmse and confustion matrix
+
+valid.rmse <- rmse(valid$Score, predict.scores.v)
+valid.rmse
+
+valid
+
+valid$Score <- round(valid$Score * 5)
+valid$Scores.predict <- round(valid$Scores.predict)
+
+valid["Score"][valid["Score"] == 0] <- 1
+
+valid.cm <- confusionMatrix(as.factor(valid$Scores.predict), as.factor(valid$Score))
+valid.cm
+```
+
+
+```{r}
+ctrl <- trainControl(method = "cv", number = 5)
+
+kfold.model <- train(Score ~ Currently_listed + Price_monthly + Price_yearly + SquareFeet + City_Puyallup + City_Tacoma + Property_Type_Industrial + Property_Type_Office + Condition_Full_Build_Out + Condition_Not_Listed + Condition_Partial_Build_Out + Available_30_Days + Available_Now, data = train, linear.output = F, method = "neuralnet", trControl = ctrl)
+
+kfold.model
+```
+
+```{r}
+predict.all <- predict(train.model, newdata = for.lease.all, all.units = FALSE)
+predict.new <- predict(train.model, newdata = for.lease.new, all.units = FALSE)
+
+for.lease.all$Scores.Predict <- predict.all * 5
+for.lease.new$Scores.Predict <- predict.new * 5
+
+for.lease.all
+for.lease.new
+
+```
+
