@@ -83,7 +83,7 @@ get_accuracy<- function(train.df,valid.df){
   #TODO either 15 or half the training rows (round if divide)
   k.num = nrow(train.df)
   if (nrow(train.df) >= 30){
-    k.num <- 20
+    k.num <- 15
   } else {
     k.num <- ceiling(nrow(train.df)/2)
   }
@@ -91,8 +91,8 @@ get_accuracy<- function(train.df,valid.df){
   # compute knn for different k on validation.
   for(i in 1:k.num) {
     knn.pred<- class::knn(train = train.df[,3:26], test = valid.df[,3:26], cl = train.df[,2],k=i)
-    
-    build.accuracy.df[i,2] <- confusionMatrix(knn.pred, valid.df$score)$overall[1]##IMPORTANT NOTE## score is undercase in cencsus and Title case (Score) in building data.
+    build.accuracy.df[i,2] <- sum(ifelse(knn.pred==valid.df$score,1,0)) / length(knn.pred)
+    # build.accuracy.df[i,2] <- confusionMatrix(knn.pred, as.factor(valid.df$score))$overall[1]##IMPORTANT NOTE## score is undercase in cencsus and Title case (Score) in building data.
   }
   return(build.accuracy.df)
 }
@@ -111,27 +111,37 @@ find_best_knn<- function(clean_scored_data){
     t.df[i,1] <- order(-temp.df$accuracy)[1]
     t.df[i,2] <- order(-temp.df$accuracy)[2]
     t.df[i,3] <- order(-temp.df$accuracy)[3]
-  }
+    print(temp.df$accuracy[1])
+    }
   a <-table(t.df$first)*4
   b <- table(t.df$second)*2
   n <- intersect(names(a), names(b)) 
   res <- c(a[!(names(a) %in% n)], b[!(names(b) %in% n)], a[n] + b[n])
   answer <-res[order(-res)][1]
+  print(answer)
+
   return(as.numeric(names(answer)))
 }
 
 # Our main function to run all the sub-functions and produce a scored data frame
 main_census_knn <- function(user, password, server, database,port){
   #Get the data from the database
+  print("Acquiring data")
   bg.scored.3ms.raw <- get_data('scored',server,user,password,database,port)
   bg.new.3ms.raw <- get_data('all',server,user,password,database,port)
-  #un-melt the data 
+  #un-melt the data
+  print("Shape Data")
   bg.scored.3ms <- reshape_census(bg.scored.3ms.raw)
   bg.new.3ms <- reshape_census(bg.new.3ms.raw)
   #normalize the data
   bg.scored.3ms.norm <- norm_data(bg.scored.3ms)
   bg.new.3ms.norm <- norm_data(bg.new.3ms)
   #Run the model on the new data and get output
+  print("Scoring Data")
   census.scored.knn <- census_KNN_model(bg.scored.3ms.norm, bg.new.3ms.norm, find_best_knn(bg.scored.3ms.norm))
   return(census.scored.knn)
 }
+
+config<-read.csv('C:/Users/Lugal/OneDrive/Documents/MSBA/Project/GreentrikeMSBA/Optimize/NuralNet/Config_File.csv')
+result<-main_census_knn(config$UID,config$PWD,config$server,'TEST','5432')
+print(result)
