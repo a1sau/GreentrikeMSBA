@@ -52,6 +52,7 @@ def calc_bg(variable='B01003_001E',method=0,distance=1,conn=None):
     df_data = cur.fetchall()
     return df_data
 
+
 #Return new full variable name for combo variable
 def calcVarName(variable,method,distance=1):
     if not variable:
