@@ -10,9 +10,13 @@ import sys
 def calc_knn_sale(user,password,host,database,port):
     r = robjects.r
     r['source']('for_sale_KNN_dynamic_script.R')  #object of R file
-    get_main_function_r = robjects.globalenv['main_forsale_knn']  #loading R function to use
-    df_result_r = get_main_function_r(user,password,host,database,port)
-    df_result = pandas2ri.rpy2py(df_result_r)
+    try:
+        get_main_function_r = robjects.globalenv['main_forsale_knn']  #loading R function to use
+        df_result_r = get_main_function_r(user,password,host,database,port)
+        df_result = pandas2ri.rpy2py(df_result_r)
+    except Exception as e:
+        print("KNN Sale Building model failed:",e)
+        return None
     return df_result
 
 
@@ -20,9 +24,13 @@ def calc_knn_sale(user,password,host,database,port):
 def calc_knn_census(user,password,host,database,port):
     r = robjects.r
     r['source']('census_KNN_dynamic_script.R')  #object of R file
-    get_main_function_r = robjects.globalenv['main_census_knn']  #loading R function to use
-    df_result_r = get_main_function_r(user,password,host,database,port)
-    df_result = pandas2ri.rpy2py(df_result_r)
+    try:
+        get_main_function_r = robjects.globalenv['main_census_knn']  #loading R function to use
+        df_result_r = get_main_function_r(user,password,host,database,port)
+        df_result = pandas2ri.rpy2py(df_result_r)
+    except Exception as e:
+        print("KNN Census model failed:",e)
+        return None
     return df_result
 
 
@@ -30,18 +38,26 @@ def calc_knn_census(user,password,host,database,port):
 def calc_neuralnet_sale(user,password,host,database,port):
     r = robjects.r
     r['source']('nn_building_script.R')  #object of R file
-    get_main_function_r = robjects.globalenv['mainfunction.all']  #loading R function to use
-    df_result_r = get_main_function_r(host,user,password,database,port)
-    df_result = pandas2ri.rpy2py(df_result_r)
+    try:
+        get_main_function_r = robjects.globalenv['mainfunction.all']  #loading R function to use
+        df_result_r = get_main_function_r(host,user,password,database,port)
+        df_result = pandas2ri.rpy2py(df_result_r)
+    except Exception as e:
+        print("NeuralNet Sale Building model failed:",e)
+        return None
     return df_result
 
 #Run R script for Neural Net census block group data
 def calc_neuralnet_census(user,password,host,database,port):
     r = robjects.r
     r['source']('nn_census_script.R')  #object of R file
-    get_main_function_r = robjects.globalenv['mainfunction.all']  #loading R function to use
-    df_result_r = get_main_function_r(host,user,password,database,port)
-    df_result = pandas2ri.rpy2py(df_result_r)
+    try:
+        get_main_function_r = robjects.globalenv['mainfunction.all']  #loading R function to use
+        df_result_r = get_main_function_r(host,user,password,database,port)
+        df_result = pandas2ri.rpy2py(df_result_r)
+    except Exception as e:
+        print("NeuralNet Census model failed:",e)
+        return None
     return df_result
 
 
@@ -51,7 +67,7 @@ def calc_ensemble_sale(conn):
     try:
         cur=conn.cursor()
         sql_command = """
-                insert into "Building_Model_Score" (cs_id, model_id, raw_score, score, date_calculated) select 
+                insert into "Building_Model_Score" (cs_id, raw_score, model_id, score, date_calculated) select 
                     cs_id
                     ,avg(score)
                     ,17
@@ -78,7 +94,7 @@ def calc_ensemble_census(conn):
     try:
         cur=conn.cursor()
         sql_command = """
-            insert into "BG_Model_Score" (bg_geo_id, model_id, raw_score, score, date_calculated) select 
+            insert into "BG_Model_Score" (bg_geo_id, raw_score, model_id, score, date_calculated) select 
                 bg_geo_id
                 ,avg(score)
                 ,18
@@ -105,6 +121,8 @@ def update_db_score(conn,df,model,is_building=True):
     if conn is None:
         return False
     if model is None:
+        return False
+    if df is None:
         return False
     if is_building:  #Building dataframe being used
         table_name="Building_Model_Score"
@@ -182,6 +200,7 @@ def main(conn=None):
     else:
         sys.exit("Configuration file not present")
     success=[] #Run each R model one at a time and store if they were successfully run
+
     print("Running KNN Sale Model")
     df = calc_knn_sale(user,password,host,database,port)
     model = str(int(df['model_id'].iat[0])) #model 13
