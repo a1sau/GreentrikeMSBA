@@ -49,23 +49,38 @@ def basic_pull():
 
 #Before being able to pull blockgroup info, you may need to run this command:
 #pip install git+https://github.com/jbousquin/cenpy.git
-def pull_census_data(cen_vars: str, outfile: str, county: str = 'Pierce, WA', level: str = 'blockgroup', year=2019):
+def pull_census_data(cen_vars: str, outfile: str, county: str = 'Pierce, WA', level: str = 'blockgroup', year=2018):
     cp.set_sitekey("6050a96e1b4bd539c1813f17d6607d70760fd718",True)
-    cp.ACS(year="latest")
+    cp.ACS(year=2018)
     product = cp.ACS(year=year).from_county(county, level=level, variables=cen_vars, return_geometry=False)
     product.to_csv(outfile)
     return None
 
 
-print("start")
+
 
 # basic_pull()
 #plot_shape()
 # pull_census_data(["B01003_001E","B01002_001E","B01001_026E","B01001_028E","B01001_004E","B01001_002E","B01001_001E"],"C:/Users/Lugal/OneDrive/Documents/MSBA/Project/pierceCensus4King.csv")
-pull_census_data(["B19001_012E","B19001_007E","B19001_006E","B01001_027E","B01001_003E","B19001_011E","B19001_016E","B19001_010E",
-"B19001_015E","B19001_017E","B19001_008E","B19001_009E","B19001_002E","B19001_001E","B19001_004E","B19001_013E","B19001_014E",
-"B19001_005E","B19001_003E","B01001_001E","B01001_002E","B01001_004E","B01001_028E","B01001_026E","B01002_001E","B01003_001E"],
-                 "C:/Users/Benjamin/Documents/UWTacoma/MSBA/Census_Drop/pierceCensus_2019.csv")
+counties=["Pierce","King","Thurston"]
+for county in counties:
+    print("start",county)
+    pull_census_data(["B14001_001E","B14001_002E","B14001_003E","B14001_004E","B14001_005E","B14001_006E","B14001_007E",
+                      "B14001_008E","B14001_009E","B14001_010E","B10002_001E",
+                      "B10002_002E","B10002_003E","B10002_004E","B10002_005E","B01001A_003E","B01001A_004E",
+                      "B01001A_005E","B01001A_018E","B01001A_019E","B01001A_020E","B01001B_003E","B01001B_004E",
+                      "B01001B_005E","B01001B_018E","B01001B_019E","B01001B_020E","B01001C_003E","B01001C_004E",
+                      "B01001C_005E","B01001C_018E","B01001C_019E","B01001C_020E","B01001D_003E","B01001D_004E",
+                      "B01001D_005E","B01001D_018E","B01001D_019E","B01001D_020E","B01001A_001E","B01001B_001E",
+                      "B01001C_001E","B01001D_001E","B01001E_001E","B01001F_001E","B01001G_001E","B01001H_001E",
+                      "B01001I_001E","B05012_001E","B05012_002E","B05012_003E","B08006_001E","B08006_002E",
+                      "B08006_003E","B08006_004E","B08006_008E","B08006_014E","B08006_015E","B08006_016E","B08006_017E",
+                      "B01001E_003E","B01001E_004E","B01001E_005E","B01001E_018E","B01001E_019E","B01001E_020E",
+                      "B01001F_003E","B01001F_004E","B01001F_005E","B01001F_018E","B01001F_019E","B01001F_020E",
+                      "B01001G_003E","B01001G_004E","B01001G_005E","B01001G_018E","B01001G_019E","B01001G_020E",
+                      "B01001H_003E","B01001H_004E","B01001H_005E","B01001H_018E","B01001H_019E","B01001H_020E",
+                      "B01001I_003E","B01001I_004E","B01001I_005E","B01001I_018E","B01001I_019E","B01001I_020E"],
+                 r"C:\Users\Lugal\OneDrive\Documents\MSBA\Project\{}Census_tract_2018_May2021C.csv".format(county),county="{}, WA".format(county),level='tract')
 
 # Call to pull male and female kids ages 0-5
 # https://api.census.gov/data/2018/acs/acs5?get=NAME,B01001_003E,B01001_027E&for=block%20group:*&in=state:53%20county:053&key=6050a96e1b4bd539c1813f17d6607d70760fd718

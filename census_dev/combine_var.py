@@ -52,6 +52,7 @@ def calc_bg(variable='B01003_001E',method=0,distance=1,conn=None):
     df_data = cur.fetchall()
     return df_data
 
+
 #Return new full variable name for combo variable
 def calcVarName(variable,method,distance=1):
     if not variable:
@@ -217,12 +218,18 @@ def show_psycopg2_exception(err):
 if __name__ == "__main__":
     # pull_data(r'C:\Users\Lugal\OneDrive\Documents\MSBA\Project\GreentrikeMSBA\census_dev\newVarImport.csv',
     #           r'C:\Users\Lugal\OneDrive\Documents\MSBA\Project\GreentrikeMSBA\census_dev\newData.csv')
-    var_list = ["B19001_012E","B19001_007E","B19001_006E","B01001_027E","B01001_003E","B19001_011E","B19001_016E",
-                "B19001_010E","B19001_015E","B19001_017E","B19001_008E","B19001_009E","B19001_002E","B19001_001E","B19001_004E",
-                "B19001_013E","B19001_014E","B19001_005E","B19001_003E","B01001_001E","B01001_002E","B01001_004E","B01001_028E","B01001_026E"]
+    var_list = ["B01001_005E","B01001_006E","B01001_007E","B01001_008E","B01001_009E","B01001_010E","B01001_011E",
+                "B01001_012E","B01001_029E","B01001_030E","B01001_031E","B01001_032E","B01001_033E","B01001_034E",
+               "B01001_035E","B01001_036E","B24080_001E","B24080_002E","B24080_003E","B24080_006E","B24080_007E",
+                "B24080_008E","B24080_009E","B24080_010E","B24080_011E","B24080_013E","B24080_016E","B24080_017E",
+                "B24080_018E","B24080_019E","B24080_020E","B24080_021E","B23025_006E","B28003_001E","B28003_002E",
+                "B28003_003E","B28003_004E","B28003_005E","B28003_006E","B28005_002E","B28005_003E","B28005_004E",
+                "B28005_005E","B28005_006E","B28005_007E"]
     method=2
     distance=3
-    var_count = build_new_var(var_list,method=method,distance=distance,outfileVar=r'C:\Users\Lugal\OneDrive\Documents\MSBA\Project\GreentrikeMSBA\census_dev\newVar_{0}.csv'.format(distance))
-    count = pull_data(var_list=var_list,method=method,distance=distance,outfileData=r'C:\Users\Lugal\OneDrive\Documents\MSBA\Project\GreentrikeMSBA\census_dev\newData_{0}.csv'.format(distance))
-    print("New Variables",var_count)
-    print("Rows generated:",count)
+    for method in [0,1,2]:
+        for distance in [1,3]:
+            var_count = build_new_var(var_list,method=method,distance=distance,outfileVar=r'C:\Users\Lugal\OneDrive\Documents\MSBA\Project\GreentrikeMSBA\census_dev\newVar_{0}_{1}.csv'.format(distance,method))
+            count = pull_data(var_list=var_list,method=method,distance=distance,outfileData=r'C:\Users\Lugal\OneDrive\Documents\MSBA\Project\GreentrikeMSBA\census_dev\newData_{0}_{1}.csv'.format(distance,method))
+            print("New Variables",var_count)
+            print("Rows generated:",count)

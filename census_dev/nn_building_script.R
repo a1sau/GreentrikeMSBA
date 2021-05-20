@@ -171,12 +171,15 @@ mainfunction.all <- function(server, user, password, database, port){
   #get the data
   print("Getting Data")
   building.data <- get_data("all", server, user, password, database, port)
+
   #clean the data
   print("cleaning Data")
   clean.building.data <- clean_building_data(building.data)
+  
   #load in the subfunction
   print("Modeling Data")
   model.all <- nn.model.new(server, user, password, database, port)
+  
   #predict with scores first
   print("Predicting data")
   Scores.predict.raw <- new.predictions(model.all, clean.building.data)
