@@ -43,7 +43,7 @@ get_data <- function(scores_or_new, server, user, password, database, port){
     left join "Building_Score" as bs on bld."CS_ID" = bs.cs_id
     where bld."Sale_Lease"=\'Lease\'
     group by bld."CS_ID",bld."Address_Line",bld."City",bld."Postal_Code",bld."Property_Type",bld."Price",bld."Year_Built",bld."SquareFeet",bld."Sale_Type"'
-  
+  print("Got Data")
   lease.import <- dbGetQuery(con,sql.lease)
   if(scores_or_new == 'scores'){
     lease.scores <- sqldf('SELECT "CS_ID", "Average Building Score", "Sale_Lease", "City", "Property_Type", "SquareFeet", "Currently_listed", 
@@ -120,13 +120,18 @@ clean_leasing_data <- function(lease.scores){
 
 nn.lease.model.score <- function(data){
   #insert model
-  set.seed(1)
   train.model <- neuralnet(Average_Building_Score ~ Currently_listed + Price_monthly + Price_yearly + SquareFeet + City_Puyallup + City_Tacoma +                    Property_Type_Industrial + Property_Type_Office + Condition_Full_Build_Out + Condition_Not_Listed + Condition_Partial_Build_Out + Available_30_Days +             Available_Now, data = data, linear.output = F, hidden = c(5,1))
   #extract scores and set scale 1-5
   predicted.scores <- prediction(train.model)
   predict.scores <- predicted.scores$rep1[,14]
   norm.predict.scores <- predict.scores * 5
   Scores.predict <- data.frame(data$CS_ID, norm.predict.scores)
+  
+  Scores.rounded<-round(Scores.predict)
+  Scores.rounded[Scores.rounded<1] <- 1
+  Scores.rounded[Scores.rounded>5] <- 5
+  accurracy<-sum(Scores.rounded==Scores.predict)
+  print(paste("Accurracy",accurracy*100,"%"))
   return(Scores.predict)
 }
 
@@ -134,9 +139,19 @@ nn.lease.model.new <- function(server, user, password, database, port, data){
   scores_data <- get_data("scores", server, user, password, database, port)
   cleaned.scores.data <- clean_leasing_data(scores_data)
   #insert model
-  set.seed(1)
   train.model.new <- neuralnet(Average_Building_Score ~ Currently_listed + Price_monthly + Price_yearly + SquareFeet + City_Puyallup + City_Tacoma +                    Property_Type_Industrial + Property_Type_Office + Condition_Full_Build_Out + Condition_Not_Listed + Condition_Partial_Build_Out + Available_30_Days +             Available_Now, data = cleaned.scores.data, linear.output = F, hidden = c(5,1))
-  return(train.model)
+
+  
+  predicted.scores <- new.lease.predictions(train.model.new,cleaned.scores.data)
+
+  Scores.rounded<-round(predicted.scores[,1])
+  Scores.rounded[Scores.rounded<1] <- 1
+  Scores.rounded[Scores.rounded>5] <- 5
+  # print(cbind(Scores.rounded,convert_from_01(cleaned.scores.data$Average_Building_Score,1,5)))
+  accurracy<-sum(Scores.rounded==(convert_from_01(cleaned.scores.data$Average_Building_Score,1,5)))/length(Scores.rounded)
+  print(paste("Accurracy:",round(accurracy,2)*100,"%"))
+  
+  return(train.model.new)
 }
 
 new.lease.predictions <- function(model, data2){
@@ -155,7 +170,6 @@ mainfunction.scores <- function(server, user, password, database, port){
   return(score.model)
 }
 
-mainfunction.scores('greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com', 'xxx', 'xxx', 'TEST', 5432)
 
 mainfunction.new <- function(server, user, password, database, port){
   #get the data
@@ -169,7 +183,7 @@ mainfunction.new <- function(server, user, password, database, port){
   
   #load in the subfunction
   
-  model.new <- nn.lease.model.new('greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com', 'xxx', 'xxx', 'TEST', 5432)
+  model.new <- nn.lease.model.new(server, user, password, database, port)
   
   #then predict with new
   
@@ -177,21 +191,20 @@ mainfunction.new <- function(server, user, password, database, port){
   return(Scores.predict.new)
 }
 
-mainfunction.new('greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com', 'xxx', 'xxx', 'TEST', 5432)
 
 mainfunction.all <- function(server, user, password, database, port){
   #get the data
   print("Getting Data")
   leasing.data <- get_data("all", server, user, password, database, port)
   #clean the data
-  print("cleaning Data")
+  print("Cleaning Data")
   clean.leasing.data <- clean_leasing_data(leasing.data)
   #load in the subfunction
   print("Modeling Data")
   model.all <- nn.lease.model.new(server, user, password, database, port)
   #predict with scores first
   print("Predicting data")
-  Scores.predict.raw <- new.predictions(model.all, clean.leasing.data)
+  Scores.predict.raw <- new.lease.predictions(model.all, clean.leasing.data)
   Scores.rounded<-round(Scores.predict.raw)
   Scores.rounded[Scores.rounded<1] <- 1
   Scores.rounded[Scores.rounded>5] <- 5
@@ -202,5 +215,4 @@ mainfunction.all <- function(server, user, password, database, port){
   return(df)
 }
 
-df<-mainfunction.all('greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com', 'xxx', 'xxx', 'TEST', 5432)
-print(df)
+# mainfunction.all("greentrike.cfvgdrxonjze.us-west-2.rds.amazonaws.com","bkrumhol","7k1@hFC^7hPj","TEST",5432)

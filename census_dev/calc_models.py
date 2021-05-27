@@ -35,6 +35,20 @@ def calc_knn_census(user,password,host,database,port):
 
 
 #Run R script for Neural Net sale building data
+def calc_neuralnet_lease(user,password,host,database,port):
+    r = robjects.r
+    r['source']('nn_for_lease_script.R')  #object of R file
+    try:
+        get_main_function_r = robjects.globalenv['mainfunction.all']  #loading R function to use
+        df_result_r = get_main_function_r(host,user,password,database,port)
+        df_result = pandas2ri.rpy2py(df_result_r)
+    except Exception as e:
+        print("NeuralNet Lease Building model failed:",e)
+        return None
+    return df_result
+
+
+#Run R script for Neural Net sale building data
 def calc_neuralnet_sale(user,password,host,database,port):
     r = robjects.r
     r['source']('nn_building_script.R')  #object of R file
@@ -46,6 +60,7 @@ def calc_neuralnet_sale(user,password,host,database,port):
         print("NeuralNet Sale Building model failed:",e)
         return None
     return df_result
+
 
 #Run R script for Neural Net census block group data
 def calc_neuralnet_census(user,password,host,database,port):
@@ -201,28 +216,32 @@ def main(conn=None):
         sys.exit("Configuration file not present")
     success=[] #Run each R model one at a time and store if they were successfully run
 
-    print("Running KNN Sale Model")
-    df = calc_knn_sale(user,password,host,database,port)
-    model = str(int(df['model_id'].iat[0])) #model 13
-    success.append(update_db_score(conn,df,model))
+    # print("Running KNN Sale Model")
+    # df = calc_knn_sale(user,password,host,database,port)
+    # model = str(int(df['model_id'].iat[0])) #model 13
+    # success.append(update_db_score(conn,df,model))
+    #
+    # print("Running KNN Census Model")
+    # df = calc_knn_census(user,password,host,database,port)
+    # success.append(update_db_score(conn,df,14,is_building=False))
+    #
+    # print("Running Neural Network Sale Model")
+    # df = calc_neuralnet_sale(user,password,host,database,port)
+    # success.append(update_db_score(conn,df,15))
 
-    print("Running KNN Census Model")
-    df = calc_knn_census(user,password,host,database,port)
-    success.append(update_db_score(conn,df,14,is_building=False))
+    print("Running Neural Network Lease Model")
+    df = calc_neuralnet_lease(user,password,host,database,port)
+    success.append(update_db_score(conn,df,20))
 
-    print("Running Neural Network Sale Model")
-    df = calc_neuralnet_sale(user,password,host,database,port)
-    success.append(update_db_score(conn,df,15))
-
-    print("Running Neural Network Census Model")
-    df = calc_neuralnet_census(user,password,host,database,port)
-    success.append(update_db_score(conn,df,16,is_building=False))
-
-    print("Running Building Ensemble")
-    success.append(calc_ensemble_sale(conn))
-
-    print("running Census Ensemble")
-    success.append(calc_ensemble_census(conn))
+    # print("Running Neural Network Census Model")
+    # df = calc_neuralnet_census(user,password,host,database,port)
+    # success.append(update_db_score(conn,df,16,is_building=False))
+    #
+    # print("Running Building Ensemble")
+    # success.append(calc_ensemble_sale(conn))
+    #
+    # print("running Census Ensemble")
+    # success.append(calc_ensemble_census(conn))
 
     return success
 
