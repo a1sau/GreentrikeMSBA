@@ -5,7 +5,7 @@ import csv
 import Lease_Scraper as lease
 import scraper as sale
 
-def config(filename='C:/Users/Benjamin/Documents/UWTacoma/MSBA/database.ini', section='postgresql'):
+def config(filename='database.ini', section='postgresql'):
     parser = ConfigParser()# create a parser
     parser.read(filename)# read config file
     # get section, default to postgresql
