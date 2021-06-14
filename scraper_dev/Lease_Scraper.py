@@ -17,12 +17,16 @@ def grab_placards():  ## NOTE -- this only searches properties that are listed f
     page_number = "https://www.loopnet.com/search/commercial-real-estate/pierce-county-wa/for-lease/"
     r_page = requests.get(page_number, headers=headers)  # Gets the information from the page
     s = bs(r_page.content, features="html.parser")  # Turns to bs object.
-    t_listings = s.find('span', class_="total-results-paging-digits")
-    t_listings = t_listings.get_text()
-    t_listings = t_listings.strip()
-    t_listings = int(t_listings[-3:])
-    pages = (t_listings//20) +2## uses the number of listings to determine how many pages are in the results.
-    print(f"Found {t_listings} placards across {pages -1} pages.\nStarting to Collect URL's of for lease properties.")
+    try :
+        t_listings = s.find('span', class_="total-results-paging-digits")
+        t_listings = t_listings.get_text()
+        t_listings = t_listings.strip()
+        t_listings = int(t_listings[-3:])
+        pages = (t_listings//20) +2## uses the number of listings to determine how many pages are in the results.
+        print(f"Found {t_listings} placards across {pages - 1} pages.\nStarting to Collect URL's of for lease properties.")
+    except AttributeError:
+        pages = 2
+        print("Error in collecting listings across all pages.\nCollecting URLs from first page.")
         ### This is what go to the search and pulls every listing url from the search page(s)
     for i in range(1,pages):      # loops equal to the number of pages in the search
         url = "https://www.loopnet.com/search/commercial-real-estate/pierce-county-wa/for-lease/{}/".format(i)  # Looks to this URL, increasing in page numbers.
